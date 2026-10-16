@@ -49,10 +49,10 @@ async def _setup(hass: HomeAssistant, tv: MockTV) -> str:
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY, result
     assert result["title"] == "Telefunken Mock"
-    await hass.async_block_till_done()
+    await hass.async_block_till_done(wait_background_tasks=True)
     entry = hass.config_entries.async_entries(DOMAIN)[0]
     hass.config_entries.async_update_entry(entry, options={"rtsp_http_port": tv.tunnel_port})
-    await hass.async_block_till_done()
+    await hass.async_block_till_done(wait_background_tasks=True)
     return entry.entry_id
 
 
@@ -194,8 +194,12 @@ async def test_timers_survive_restart_with_tv_off(hass: HomeAssistant, mock_tv: 
     assert hass_storage[f"{DOMAIN}.{entry_id}"]["data"]["recordings"][0]["name"] == "heute"
     assert await hass.config_entries.async_unload(entry_id)
     await mock_tv.stop()  # TV + socket off
+    import time
+
+    t0 = time.monotonic()
     assert await hass.config_entries.async_setup(entry_id)
-    await hass.async_block_till_done()
+    assert time.monotonic() - t0 < 2, "setup must not block on an unreachable TV"
+    await hass.async_block_till_done(wait_background_tasks=True)
     assert hass.states.get("media_player.telefunken_mock").state == "off"
     assert hass.states.get("sensor.telefunken_mock_recordings").state == "1"
     resp = await hass.services.async_call(

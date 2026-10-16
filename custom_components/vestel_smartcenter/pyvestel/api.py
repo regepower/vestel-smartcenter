@@ -135,17 +135,18 @@ class VestelTV:
             if not url.startswith("ws"):
                 raise VestelError("vr/getwebsocketlink returned no websocket URL")
         try:
-            self._ws = await self._session.ws_connect(
-                url,
-                headers={
-                    "Origin": f"http://{self.host}",
-                    "Pragma": "no-cache",
-                    "Cache-Control": "no-cache",
-                },
-                timeout=aiohttp.ClientWSTimeout(ws_close=5),
-                heartbeat=None,
-                autoping=True,
-            )
+            async with asyncio.timeout(8):
+                self._ws = await self._session.ws_connect(
+                    url,
+                    headers={
+                        "Origin": f"http://{self.host}",
+                        "Pragma": "no-cache",
+                        "Cache-Control": "no-cache",
+                    },
+                    timeout=aiohttp.ClientWSTimeout(ws_close=5),
+                    heartbeat=None,
+                    autoping=True,
+                )
         except (aiohttp.ClientError, TimeoutError) as err:
             raise VestelError(f"websocket {url}: {err}") from err
         self._ws_task = asyncio.create_task(self._ws_reader(self._ws), name=f"vestel-ws-{self.host}")
@@ -285,7 +286,7 @@ class VestelTV:
 
     # ---------------------------------------------------------------- queries
     async def get_channels(self) -> list[Channel]:
-        return parse_channel_list(await self._query("vr/activechannellist", "activechannellist", 45))
+        return parse_channel_list(await self._query("vr/activechannellist", "activechannellist", 20))
 
     async def get_current_channel(self) -> Channel | None:
         return parse_program(await self._query("vr/program", "program"))

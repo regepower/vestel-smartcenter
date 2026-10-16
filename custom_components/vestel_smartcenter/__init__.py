@@ -62,34 +62,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: VestelConfigEntry) -> bo
         apps_url=d[CONF_APPS_URL],
         location=d.get(CONF_LOCATION),
     )
-    # Refresh dd.xml if the TV is on (apps URL / port may change). If the stored server is not the
-    # SmartCenter one (e.g. the Vewd browser's DIAL server), re-discover all DIAL servers of the host.
-    fresh: TVInfo | None = None
-    with contextlib.suppress(Exception):
-        if info.location:
-            cand = await fetch_device_info(session, info.host, info.location)
-            fresh = cand if is_smartcenter(cand) and cand.apps_url else None
-        if fresh is None:
-            fresh = (await VestelTV.from_host(session, info.host)).info
-    if fresh is not None:
-        repaired = not d.get(CONF_MODEL)  # entry was created from a non-SmartCenter DIAL server
-        if not repaired:
-            fresh.name = info.name or fresh.name
-        info = fresh
-        hass.config_entries.async_update_entry(
-            entry,
-            title=(fresh.name or entry.title) if repaired else entry.title,
-            data={
-                **({CONF_NAME: fresh.name} if repaired and fresh.name else {}),
-                **entry.data,
-                CONF_LOCATION: fresh.location,
-                CONF_APPS_URL: fresh.apps_url,
-                CONF_DIAL_VERSION: fresh.dial_version,
-                CONF_MODEL: fresh.model,
-                CONF_SW_VERSION: fresh.software_version,
-                CONF_MAC: fresh.mac or d.get(CONF_MAC),
-            },
-        )
     info.mac = entry.options.get(CONF_MAC) or info.mac or d.get(CONF_MAC) or mac_from_arp(info.host)
     if info.mac and not entry.data.get(CONF_MAC):
         hass.config_entries.async_update_entry(entry, data={**entry.data, CONF_MAC: info.mac})
@@ -105,16 +77,56 @@ async def async_setup_entry(hass: HomeAssistant, entry: VestelConfigEntry) -> bo
     coordinator.local_stream = LocalStreamServer(followtv)
     await coordinator.local_stream.start()
     await coordinator.async_load_cache()
-    await coordinator.async_refresh()
+    coordinator.options_snapshot = dict(entry.options)
     entry.runtime_data = coordinator
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_reload))
+    # Never block HA startup on the TV (it may be off or half-asleep): refresh in the background.
+    entry.async_create_background_task(hass, _refresh_info(hass, entry, tv), f"{DOMAIN}-refresh-{entry.entry_id}")
     return True
 
 
+async def _refresh_info(hass: HomeAssistant, entry: VestelConfigEntry, tv: VestelTV) -> None:
+    """Refresh dd.xml (apps URL/port may change); repair entries made from a non-SmartCenter DIAL server."""
+    session = async_get_clientsession(hass)
+    d = entry.data
+    info = tv.info
+    fresh: TVInfo | None = None
+    with contextlib.suppress(Exception):
+        async with asyncio.timeout(20):
+            if info.location:
+                cand = await fetch_device_info(session, info.host, info.location)
+                fresh = cand if is_smartcenter(cand) and cand.apps_url else None
+            if fresh is None:
+                fresh = (await VestelTV.from_host(session, info.host)).info
+    if fresh is not None:
+        repaired = not d.get(CONF_MODEL)
+        fresh.name = (fresh.name or info.name) if repaired else (info.name or fresh.name)
+        fresh.mac = entry.options.get(CONF_MAC) or fresh.mac or info.mac
+        fresh.protocol = info.protocol
+        tv.info = fresh
+        new_data = {
+            **entry.data,
+            CONF_NAME: fresh.name,
+            CONF_LOCATION: fresh.location,
+            CONF_APPS_URL: fresh.apps_url,
+            CONF_DIAL_VERSION: fresh.dial_version,
+            CONF_MODEL: fresh.model,
+            CONF_SW_VERSION: fresh.software_version,
+            CONF_MAC: fresh.mac,
+        }
+        if new_data != dict(entry.data):
+            hass.config_entries.async_update_entry(
+                entry, title=(fresh.name or entry.title) if repaired else entry.title, data=new_data
+            )
+    await entry.runtime_data.async_refresh()
+
+
 async def _reload(hass: HomeAssistant, entry: VestelConfigEntry) -> None:
-    await hass.config_entries.async_reload(entry.entry_id)
+    # Only option changes need a reload; data updates (refreshed dd.xml) are applied live.
+    if dict(entry.options) != getattr(entry.runtime_data, "options_snapshot", None):
+        await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: VestelConfigEntry) -> bool:
