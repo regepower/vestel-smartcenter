@@ -1,9 +1,12 @@
 name: Release
 
+# Creates tag + GitHub release "v<version>" whenever manifest.json on main has a new version.
+# HACS then shows the version instead of the commit hash.
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main]
+    paths: [custom_components/vestel_smartcenter/manifest.json]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -13,13 +16,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check manifest version matches tag
+      - name: Read version
+        id: v
         run: |
-          v=$(python3 -c "import json;print(json.load(open('custom_components/vestel_smartcenter/manifest.json'))['version'])")
-          test "v$v" = "${GITHUB_REF_NAME}" || { echo "manifest $v != tag ${GITHUB_REF_NAME}"; exit 1; }
+          echo "tag=v$(jq -r .version custom_components/vestel_smartcenter/manifest.json)" >> "$GITHUB_OUTPUT"
       - name: Zip integration
         run: cd custom_components/vestel_smartcenter && zip -r ../../vestel_smartcenter.zip . -x '__pycache__/*'
-      - name: Create release
+      - name: Create release (skip if it exists)
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" vestel_smartcenter.zip --title "${GITHUB_REF_NAME}" --generate-notes
+          TAG: ${{ steps.v.outputs.tag }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then echo "$TAG exists"; exit 0; fi
+          gh release create "$TAG" vestel_smartcenter.zip --target "$GITHUB_SHA" --title "$TAG" --generate-notes
