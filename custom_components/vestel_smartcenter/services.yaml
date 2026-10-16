@@ -99,3 +99,19 @@ refresh_channels:
     entity:
       integration: vestel_smartcenter
       domain: media_player
+send_raw:
+  target:
+    entity:
+      integration: vestel_smartcenter
+      domain: media_player
+  fields:
+    path:
+      required: true
+      example: "SmartCenter"
+      selector:
+        text:
+    body:
+      example: "<command>volume</command>"
+      selector:
+        text:
+          multiline: true

@@ -67,6 +67,122 @@
       "channel_count": {
         "name": "Senderliste"
       }
+    },
+    "button": {
+      "key_power": {
+        "name": "Ein/Aus"
+      },
+      "key_home": {
+        "name": "Home"
+      },
+      "key_menu": {
+        "name": "Menü"
+      },
+      "key_back": {
+        "name": "Zurück"
+      },
+      "key_exit": {
+        "name": "Exit"
+      },
+      "key_ok": {
+        "name": "OK"
+      },
+      "key_up": {
+        "name": "Hoch"
+      },
+      "key_down": {
+        "name": "Runter"
+      },
+      "key_left": {
+        "name": "Links"
+      },
+      "key_right": {
+        "name": "Rechts"
+      },
+      "key_vol_up": {
+        "name": "Lauter"
+      },
+      "key_vol_down": {
+        "name": "Leiser"
+      },
+      "key_mute": {
+        "name": "Stumm"
+      },
+      "key_prog_up": {
+        "name": "Programm +"
+      },
+      "key_prog_down": {
+        "name": "Programm −"
+      },
+      "key_source": {
+        "name": "Quelle"
+      },
+      "key_epg": {
+        "name": "EPG"
+      },
+      "key_info": {
+        "name": "Info"
+      },
+      "key_text": {
+        "name": "Videotext"
+      },
+      "key_qmenu": {
+        "name": "Schnellmenü"
+      },
+      "key_red": {
+        "name": "Rot"
+      },
+      "key_green": {
+        "name": "Grün"
+      },
+      "key_yellow": {
+        "name": "Gelb"
+      },
+      "key_blue": {
+        "name": "Blau"
+      },
+      "key_play": {
+        "name": "Play"
+      },
+      "key_pause": {
+        "name": "Pause"
+      },
+      "key_stop": {
+        "name": "Stop"
+      },
+      "key_record": {
+        "name": "Aufnahme"
+      },
+      "key_0": {
+        "name": "Taste 0"
+      },
+      "key_1": {
+        "name": "Taste 1"
+      },
+      "key_2": {
+        "name": "Taste 2"
+      },
+      "key_3": {
+        "name": "Taste 3"
+      },
+      "key_4": {
+        "name": "Taste 4"
+      },
+      "key_5": {
+        "name": "Taste 5"
+      },
+      "key_6": {
+        "name": "Taste 6"
+      },
+      "key_7": {
+        "name": "Taste 7"
+      },
+      "key_8": {
+        "name": "Taste 8"
+      },
+      "key_9": {
+        "name": "Taste 9"
+      }
     }
   },
   "selector": {
@@ -170,6 +286,20 @@
     "refresh_channels": {
       "name": "Senderliste aktualisieren",
       "description": "Lädt die Senderliste neu vom TV."
+    },
+    "send_raw": {
+      "name": "Rohbefehl senden (Debug)",
+      "description": "Sendet eine beliebige Anfrage an die SmartCenter-URL des TVs und liefert HTTP- und Websocket-Antworten.",
+      "fields": {
+        "path": {
+          "name": "Pfad",
+          "description": "z. B. SmartCenter oder vr/volume"
+        },
+        "body": {
+          "name": "Body",
+          "description": "Leer = GET, sonst POST"
+        }
+      }
     }
   }
 }

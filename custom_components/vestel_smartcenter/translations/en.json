@@ -67,6 +67,122 @@
       "channel_count": {
         "name": "Channels"
       }
+    },
+    "button": {
+      "key_power": {
+        "name": "Power"
+      },
+      "key_home": {
+        "name": "Home"
+      },
+      "key_menu": {
+        "name": "Menu"
+      },
+      "key_back": {
+        "name": "Back"
+      },
+      "key_exit": {
+        "name": "Exit"
+      },
+      "key_ok": {
+        "name": "OK"
+      },
+      "key_up": {
+        "name": "Up"
+      },
+      "key_down": {
+        "name": "Down"
+      },
+      "key_left": {
+        "name": "Left"
+      },
+      "key_right": {
+        "name": "Right"
+      },
+      "key_vol_up": {
+        "name": "Volume up"
+      },
+      "key_vol_down": {
+        "name": "Volume down"
+      },
+      "key_mute": {
+        "name": "Mute"
+      },
+      "key_prog_up": {
+        "name": "Channel up"
+      },
+      "key_prog_down": {
+        "name": "Channel down"
+      },
+      "key_source": {
+        "name": "Source"
+      },
+      "key_epg": {
+        "name": "EPG"
+      },
+      "key_info": {
+        "name": "Info"
+      },
+      "key_text": {
+        "name": "Teletext"
+      },
+      "key_qmenu": {
+        "name": "Quick menu"
+      },
+      "key_red": {
+        "name": "Red"
+      },
+      "key_green": {
+        "name": "Green"
+      },
+      "key_yellow": {
+        "name": "Yellow"
+      },
+      "key_blue": {
+        "name": "Blue"
+      },
+      "key_play": {
+        "name": "Play"
+      },
+      "key_pause": {
+        "name": "Pause"
+      },
+      "key_stop": {
+        "name": "Stop"
+      },
+      "key_record": {
+        "name": "Record"
+      },
+      "key_0": {
+        "name": "Key 0"
+      },
+      "key_1": {
+        "name": "Key 1"
+      },
+      "key_2": {
+        "name": "Key 2"
+      },
+      "key_3": {
+        "name": "Key 3"
+      },
+      "key_4": {
+        "name": "Key 4"
+      },
+      "key_5": {
+        "name": "Key 5"
+      },
+      "key_6": {
+        "name": "Key 6"
+      },
+      "key_7": {
+        "name": "Key 7"
+      },
+      "key_8": {
+        "name": "Key 8"
+      },
+      "key_9": {
+        "name": "Key 9"
+      }
     }
   },
   "selector": {
@@ -170,6 +286,20 @@
     "refresh_channels": {
       "name": "Refresh channel list",
       "description": "Reloads the channel list from the TV."
+    },
+    "send_raw": {
+      "name": "Send raw (debug)",
+      "description": "Sends any request below the TV's SmartCenter URL and returns HTTP and websocket replies.",
+      "fields": {
+        "path": {
+          "name": "Path",
+          "description": "e.g. SmartCenter or vr/volume"
+        },
+        "body": {
+          "name": "Body",
+          "description": "Empty = GET, otherwise POST"
+        }
+      }
     }
   }
 }

@@ -6,6 +6,8 @@ import asyncio
 import contextlib
 import logging
 import socket
+import time
+from collections import deque
 from collections.abc import Callable
 from datetime import datetime
 
@@ -65,6 +67,8 @@ class VestelTV:
         self._lock = asyncio.Lock()
         self._listeners: list[EventCallback] = []
         self._closing = False
+        self.history: deque[dict[str, object]] = deque(maxlen=60)
+        self.last_status: int | None = None
 
     # ------------------------------------------------------------------ setup
     @classmethod
@@ -105,7 +109,25 @@ class VestelTV:
         if self.connected:
             return
         self._closing = False
-        if self.info.is_v2:
+        if self.info.protocol:
+            await self._open_ws(self.info.is_v2)
+            return
+        # Auto-probe: try the protocol suggested by dial_version first, then the other one.
+        first = self.info.is_v2
+        errors: list[str] = []
+        for v2 in (first, not first):
+            try:
+                await self._open_ws(v2)
+            except VestelError as err:
+                errors.append(str(err))
+                continue
+            self.info.protocol = "v2" if v2 else "v1"
+            _LOGGER.info("%s: using SmartCenter protocol %s", self.host, self.info.protocol)
+            return
+        raise VestelError("; ".join(errors))
+
+    async def _open_ws(self, v2: bool) -> None:
+        if v2:
             url = f"ws://{self.host}:{WS_PORT_V2}/"
         else:
             url = (await self._get("vr/getwebsocketlink") or "").strip()
@@ -145,6 +167,7 @@ class VestelTV:
                     continue
                 text: str = msg.data
                 _LOGGER.debug("ws <- %s", text)
+                self._log("WS", "<-", None, None, text)
                 if "<event>" in text:
                     self._emit(text.replace("<event>", "").replace("</event>", "").strip())
                 elif self.info.is_v2:
@@ -165,13 +188,30 @@ class VestelTV:
                 _LOGGER.exception("listener failed")
 
     # -------------------------------------------------------------- transport
+    def _log(self, method: str, url: str, body: str | None, status: int | None, resp: str | None) -> None:
+        self.history.append(
+            {
+                "t": time.strftime("%H:%M:%S"),
+                "method": method,
+                "url": url,
+                "body": body,
+                "status": status,
+                "response": (resp or "")[:2000],
+            }
+        )
+
     async def _get(self, path: str, timeout: float = DEFAULT_TIMEOUT) -> str | None:
         url = f"{self.info.apps_url}{path}"
         try:
             async with self._session.get(url, timeout=aiohttp.ClientTimeout(total=timeout)) as r:
-                return (await r.text()).strip() if r.status == 200 else None
+                text = (await r.text()).strip()
+                self.last_status = r.status
         except (aiohttp.ClientError, TimeoutError) as err:
+            self._log("GET", url, None, None, repr(err))
             raise VestelError(f"GET {url}: {err}") from err
+        _LOGGER.debug("GET %s -> %s %s", url, r.status, text[:300])
+        self._log("GET", url, None, r.status, text)
+        return text if r.status == 200 else None
 
     async def _post(self, path: str, body: str, timeout: float = DEFAULT_TIMEOUT) -> str | None:
         url = f"{self.info.apps_url}{path}"
@@ -182,9 +222,38 @@ class VestelTV:
                 headers={"Content-Type": "text/plain; charset=ISO-8859-1"},
                 timeout=aiohttp.ClientTimeout(total=timeout),
             ) as r:
-                return (await r.text()).strip() if r.status in (200, 201) else None
+                text = (await r.text()).strip()
+                self.last_status = r.status
         except (aiohttp.ClientError, TimeoutError) as err:
+            self._log("POST", url, body, None, repr(err))
             raise VestelError(f"POST {url}: {err}") from err
+        _LOGGER.debug("POST %s %s -> %s %s", url, body, r.status, text[:300])
+        self._log("POST", url, body, r.status, text)
+        if r.status >= 400:
+            raise VestelError(f"POST {url}: HTTP {r.status} {text[:200]}")
+        return text if r.status in (200, 201) else None
+
+    async def send_raw(self, path: str, body: str | None = None, wait_ws: float = 3.0) -> dict[str, object]:
+        """Debug helper: GET (body None) or POST any path below the apps URL; collects ws replies."""
+        while not self._responses.empty():
+            self._responses.get_nowait()
+        status: int | None = None
+        try:
+            http = await (self._get(path) if body is None else self._post(path, body))
+            status = self.last_status
+        except VestelError as err:
+            http, status = str(err), self.last_status
+        ws: list[str] = []
+        with contextlib.suppress(TimeoutError):
+            async with asyncio.timeout(wait_ws):
+                while True:
+                    ws.append(await self._responses.get())
+        return {
+            "status": status,
+            "http": http,
+            "ws": ws,
+            "protocol": self.info.protocol or ("v2" if self.info.is_v2 else "v1"),
+        }
 
     async def _v2(self, body: str, expect: bool, timeout: float) -> str | None:
         async with self._lock:

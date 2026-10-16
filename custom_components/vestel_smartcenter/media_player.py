@@ -28,6 +28,7 @@ from .const import (
     SERVICE_DELETE_TIMER,
     SERVICE_OPEN_URL,
     SERVICE_REFRESH_CHANNELS,
+    SERVICE_SEND_RAW,
     SERVICE_SEND_TEXT,
     SERVICE_SET_ECO_MODE,
     SERVICE_START_FOLLOWTV,
@@ -94,6 +95,12 @@ async def async_setup_entry(
     )
     platform.async_register_entity_service(SERVICE_STOP_FOLLOWTV, {}, "async_stop_followtv")
     platform.async_register_entity_service(SERVICE_REFRESH_CHANNELS, {}, "async_refresh_channels")
+    platform.async_register_entity_service(
+        SERVICE_SEND_RAW,
+        {vol.Required("path"): cv.string, vol.Optional("body"): cv.string},
+        "async_send_raw",
+        supports_response=SupportsResponse.ONLY,
+    )
 
 
 class VestelMediaPlayer(VestelEntity, MediaPlayerEntity):
@@ -293,3 +300,7 @@ class VestelMediaPlayer(VestelEntity, MediaPlayerEntity):
     async def async_stop_followtv(self) -> None:
         await self.coordinator.followtv.stop()
         await self._call(self.tv.stop_followtv())
+
+    async def async_send_raw(self, path: str, body: str | None = None) -> ServiceResponse:
+        """Debug: send any request below the TV's apps URL and return HTTP + websocket replies."""
+        return await self.tv.send_raw(path.lstrip("/"), body)  # type: ignore[return-value]

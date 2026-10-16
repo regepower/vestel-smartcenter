@@ -52,10 +52,16 @@ class TVInfo:
     browser_type: str | None = None
     alexa_enabled: bool = False
     qui_ui: str | None = None
+    protocol: str | None = None  # "v1" | "v2"; None = derive from dial_version / auto-probe
 
     @property
     def is_v2(self) -> bool:
-        return self.dial_version.strip() == "2.0"
+        if self.protocol:
+            return self.protocol == "v2"
+        try:
+            return float(self.dial_version.strip().split()[0]) >= 2  # app: == "2.0"; newer TVs report higher
+        except (ValueError, IndexError):
+            return False
 
 
 @dataclass(slots=True)

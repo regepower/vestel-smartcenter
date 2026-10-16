@@ -133,3 +133,25 @@ async def test_flow_rejects_vewd(hass: HomeAssistant, mock_tv: MockTV) -> None:
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "not_smartcenter"}
     assert "Vewd" in result["description_placeholders"]["seen"]
+
+
+async def test_buttons_raw_diagnostics(hass: HomeAssistant, mock_tv: MockTV) -> None:
+    from custom_components.vestel_smartcenter.diagnostics import async_get_config_entry_diagnostics
+
+    entry_id = await _setup(hass, mock_tv)
+    await hass.services.async_call("button", "press", {"entity_id": "button.telefunken_mock_menu"}, blocking=True)
+    assert mock_tv.keys[-1] == "1048"
+    resp = await hass.services.async_call(
+        DOMAIN,
+        "send_raw",
+        {"entity_id": "media_player.telefunken_mock", "path": "SmartCenter", "body": "<command>volume</command>"},
+        blocking=True,
+        return_response=True,
+    )
+    r = resp["media_player.telefunken_mock"]
+    assert r["status"] == 200 and r["ws"] == ["<volume level=20"] and r["protocol"] == "v2"
+    entry = hass.config_entries.async_get_entry(entry_id)
+    diag = await async_get_config_entry_diagnostics(hass, entry)
+    assert diag["entry"]["stream_token"] == "**REDACTED**"
+    assert any(h["method"] == "POST" for h in diag["history"])
+    assert await hass.config_entries.async_unload(entry_id)
