@@ -1,0 +1,173 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect TV",
+        "description": "Leave everything empty to search the network. Otherwise enter the TV IP. If the TV does not answer SSDP, also enter the dd.xml URL (from `vestel_cli.py discover`).",
+        "data": {
+          "host": "Host / IP",
+          "location": "Device description URL (optional)"
+        }
+      },
+      "pick": {
+        "title": "Select TV",
+        "data": {
+          "host": "TV"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "TV not reachable or not a SmartCenter TV. Is it switched on?",
+      "no_devices_found": "No TV found on the network."
+    },
+    "abort": {
+      "already_configured": "TV is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "FollowTV",
+        "data": {
+          "rtsp_http_port": "RTSP-over-HTTP port (0 = plain RTSP)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "remote": {
+      "remote": {
+        "name": "Remote"
+      }
+    },
+    "sensor": {
+      "channel": {
+        "name": "Channel"
+      },
+      "reminders": {
+        "name": "Reminders"
+      },
+      "recordings": {
+        "name": "Recordings"
+      },
+      "tv_state": {
+        "name": "TV state",
+        "state": {
+          "default": "TV",
+          "portal": "Portal",
+          "media_browser": "Media browser",
+          "epg": "EPG",
+          "backlight_off": "Backlight off",
+          "standby": "Standby",
+          "off": "Off"
+        }
+      },
+      "channel_count": {
+        "name": "Channels"
+      }
+    }
+  },
+  "selector": {
+    "kind": {
+      "options": {
+        "reminder": "Reminder",
+        "record": "Recording"
+      }
+    },
+    "repeat": {
+      "options": {
+        "once": "Once",
+        "daily": "Daily",
+        "weekly": "Weekly"
+      }
+    }
+  },
+  "services": {
+    "add_timer": {
+      "name": "Add timer",
+      "description": "Creates a reminder or recording timer on the TV.",
+      "fields": {
+        "channel": {
+          "name": "Channel",
+          "description": "Channel name or RSN."
+        },
+        "start": {
+          "name": "Start",
+          "description": "Local time."
+        },
+        "end": {
+          "name": "End",
+          "description": "Local time."
+        },
+        "name": {
+          "name": "Title",
+          "description": "Event title shown on the TV."
+        },
+        "kind": {
+          "name": "Type",
+          "description": "Reminder or recording (USB recording needed)."
+        },
+        "repeat": {
+          "name": "Repeat",
+          "description": "Once, daily or weekly."
+        }
+      }
+    },
+    "delete_timer": {
+      "name": "Delete timer",
+      "description": "Deletes a reminder or recording timer by ID (see sensor attributes).",
+      "fields": {
+        "timer_id": {
+          "name": "ID",
+          "description": "Timer ID."
+        },
+        "kind": {
+          "name": "Type",
+          "description": "Reminder or recording."
+        }
+      }
+    },
+    "open_url": {
+      "name": "Open URL",
+      "description": "Opens a URL in the TV browser.",
+      "fields": {
+        "url": {
+          "name": "URL",
+          "description": "URL"
+        }
+      }
+    },
+    "send_text": {
+      "name": "Send text",
+      "description": "Types text into an open on-screen keyboard.",
+      "fields": {
+        "text": {
+          "name": "Text",
+          "description": "Text"
+        }
+      }
+    },
+    "set_eco_mode": {
+      "name": "Set backlight / eco mode",
+      "description": "Sets the backlight dimming mode.",
+      "fields": {
+        "mode": {
+          "name": "Mode",
+          "description": "Dimming mode."
+        }
+      }
+    },
+    "start_followtv": {
+      "name": "Start FollowTV",
+      "description": "Starts FollowTV and returns stream URLs (proxy URL works in VLC, also for encrypted channels)."
+    },
+    "stop_followtv": {
+      "name": "Stop FollowTV",
+      "description": "Stops FollowTV."
+    },
+    "refresh_channels": {
+      "name": "Refresh channel list",
+      "description": "Reloads the channel list from the TV."
+    }
+  }
+}

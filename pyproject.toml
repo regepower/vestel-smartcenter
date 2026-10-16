@@ -1,0 +1,21 @@
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "ASYNC", "RUF", "PL", "S", "BLE"]
+ignore = ["PLR0913", "PLR0912", "PLR0915", "PLR2004", "PLR0911", "PLR0917", "S101", "RUF001", "RUF012", "ASYNC109"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S", "PLC0415", "E402", "I001", "E501", "SIM113"]
+"tools/*" = ["ASYNC220", "ASYNC230", "S603", "S607"]
+
+[tool.mypy]
+python_version = "3.13"
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = true

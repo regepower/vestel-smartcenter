@@ -1,0 +1,173 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "TV verbinden",
+        "description": "Alles leer lassen = Netzwerksuche. Sonst IP des TVs eingeben. Antwortet der TV nicht auf SSDP, zusätzlich die dd.xml-URL angeben (aus `vestel_cli.py discover`).",
+        "data": {
+          "host": "Host / IP",
+          "location": "Device-Description-URL (optional)"
+        }
+      },
+      "pick": {
+        "title": "TV auswählen",
+        "data": {
+          "host": "TV"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "TV nicht erreichbar oder kein SmartCenter-TV. Ist er eingeschaltet?",
+      "no_devices_found": "Kein TV im Netzwerk gefunden."
+    },
+    "abort": {
+      "already_configured": "TV ist bereits eingerichtet."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "FollowTV",
+        "data": {
+          "rtsp_http_port": "RTSP-über-HTTP-Port (0 = reines RTSP)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "remote": {
+      "remote": {
+        "name": "Fernbedienung"
+      }
+    },
+    "sensor": {
+      "channel": {
+        "name": "Sender"
+      },
+      "reminders": {
+        "name": "Erinnerungen"
+      },
+      "recordings": {
+        "name": "Aufnahme-Timer"
+      },
+      "tv_state": {
+        "name": "TV-Status",
+        "state": {
+          "default": "TV",
+          "portal": "Portal",
+          "media_browser": "Medienbrowser",
+          "epg": "EPG",
+          "backlight_off": "Bildschirm aus",
+          "standby": "Standby",
+          "off": "Aus"
+        }
+      },
+      "channel_count": {
+        "name": "Senderliste"
+      }
+    }
+  },
+  "selector": {
+    "kind": {
+      "options": {
+        "reminder": "Erinnerung",
+        "record": "Aufnahme"
+      }
+    },
+    "repeat": {
+      "options": {
+        "once": "Einmalig",
+        "daily": "Täglich",
+        "weekly": "Wöchentlich"
+      }
+    }
+  },
+  "services": {
+    "add_timer": {
+      "name": "Timer anlegen",
+      "description": "Legt eine Erinnerung oder Aufnahme auf dem TV an.",
+      "fields": {
+        "channel": {
+          "name": "Sender",
+          "description": "Sendername oder RSN."
+        },
+        "start": {
+          "name": "Start",
+          "description": "Lokale Zeit."
+        },
+        "end": {
+          "name": "Ende",
+          "description": "Lokale Zeit."
+        },
+        "name": {
+          "name": "Titel",
+          "description": "Titel, der am TV angezeigt wird."
+        },
+        "kind": {
+          "name": "Art",
+          "description": "Erinnerung oder Aufnahme (USB-Aufnahme nötig)."
+        },
+        "repeat": {
+          "name": "Wiederholung",
+          "description": "Einmalig, täglich oder wöchentlich."
+        }
+      }
+    },
+    "delete_timer": {
+      "name": "Timer löschen",
+      "description": "Löscht einen Timer per ID (siehe Sensor-Attribute).",
+      "fields": {
+        "timer_id": {
+          "name": "ID",
+          "description": "Timer-ID."
+        },
+        "kind": {
+          "name": "Art",
+          "description": "Erinnerung oder Aufnahme."
+        }
+      }
+    },
+    "open_url": {
+      "name": "URL öffnen",
+      "description": "Öffnet eine URL im TV-Browser.",
+      "fields": {
+        "url": {
+          "name": "URL",
+          "description": "URL"
+        }
+      }
+    },
+    "send_text": {
+      "name": "Text senden",
+      "description": "Tippt Text in eine geöffnete Bildschirmtastatur.",
+      "fields": {
+        "text": {
+          "name": "Text",
+          "description": "Text"
+        }
+      }
+    },
+    "set_eco_mode": {
+      "name": "Backlight-/Eco-Modus setzen",
+      "description": "Setzt den Backlight-Dimm-Modus.",
+      "fields": {
+        "mode": {
+          "name": "Modus",
+          "description": "Dimm-Modus."
+        }
+      }
+    },
+    "start_followtv": {
+      "name": "FollowTV starten",
+      "description": "Startet FollowTV und liefert Stream-URLs (Proxy-URL funktioniert in VLC, auch bei verschlüsselten Sendern)."
+    },
+    "stop_followtv": {
+      "name": "FollowTV stoppen",
+      "description": "Stoppt FollowTV."
+    },
+    "refresh_channels": {
+      "name": "Senderliste aktualisieren",
+      "description": "Lädt die Senderliste neu vom TV."
+    }
+  }
+}

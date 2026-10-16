@@ -1,0 +1,101 @@
+add_timer:
+  target:
+    entity:
+      integration: vestel_smartcenter
+      domain: media_player
+  fields:
+    channel:
+      required: true
+      example: "Das Erste HD"
+      selector:
+        text:
+    start:
+      required: true
+      selector:
+        datetime:
+    end:
+      required: true
+      selector:
+        datetime:
+    name:
+      selector:
+        text:
+    kind:
+      default: reminder
+      selector:
+        select:
+          translation_key: kind
+          options: [reminder, record]
+    repeat:
+      default: once
+      selector:
+        select:
+          translation_key: repeat
+          options: [once, daily, weekly]
+delete_timer:
+  target:
+    entity:
+      integration: vestel_smartcenter
+      domain: media_player
+  fields:
+    timer_id:
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 4294967295
+          mode: box
+    kind:
+      default: reminder
+      selector:
+        select:
+          translation_key: kind
+          options: [reminder, record]
+open_url:
+  target:
+    entity:
+      integration: vestel_smartcenter
+      domain: media_player
+  fields:
+    url:
+      required: true
+      example: "https://www.ardmediathek.de"
+      selector:
+        text:
+          type: url
+send_text:
+  target:
+    entity:
+      integration: vestel_smartcenter
+      domain: media_player
+  fields:
+    text:
+      required: true
+      selector:
+        text:
+set_eco_mode:
+  target:
+    entity:
+      integration: vestel_smartcenter
+      domain: media_player
+  fields:
+    mode:
+      required: true
+      selector:
+        select:
+          options: [low, medium, high, auto, "off", eco]
+start_followtv:
+  target:
+    entity:
+      integration: vestel_smartcenter
+      domain: media_player
+stop_followtv:
+  target:
+    entity:
+      integration: vestel_smartcenter
+      domain: media_player
+refresh_channels:
+  target:
+    entity:
+      integration: vestel_smartcenter
+      domain: media_player
