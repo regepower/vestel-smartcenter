@@ -17,12 +17,12 @@ blueprint:
             - domain: calendar
               integration: vestel_smartcenter
     person:
-      name: Person
-      description: Wenn diese Person nicht zu Hause ist, wird geschaltet.
+      name: Person / Handy
+      description: Wenn diese Person bzw. dieses Handy nicht zu Hause ist, wird geschaltet.
       selector:
         entity:
           filter:
-            - domain: person
+            - domain: [person, device_tracker]
     power_switch:
       name: Steckdose des TVs
       selector:
