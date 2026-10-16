@@ -204,3 +204,19 @@ async def test_manager_fanout(ports: dict[str, int], monkeypatch: pytest.MonkeyP
         await tv.disconnect()
         await session.close()
         await mock.stop()
+
+
+async def test_pick_smartcenter_ignores_vewd(ports: dict[str, int], monkeypatch: pytest.MonkeyPatch) -> None:
+    from pyvestel import NotSmartCenterError, pick_smartcenter
+
+    mock, session, _tv = await _setup(True, False, ports, monkeypatch)
+    base = f"http://127.0.0.1:{ports['http_port']}"
+    try:
+        best, infos = await pick_smartcenter(session, "127.0.0.1", [f"{base}/vewd.xml", f"{base}/dd.xml"])
+        assert best is not None and best.model == "mb100" and len(infos) == 2
+        with pytest.raises(NotSmartCenterError) as exc:
+            await VestelTV.from_host(session, "127.0.0.1", location=f"{base}/vewd.xml")
+        assert "Vewd" in str(exc.value)
+    finally:
+        await session.close()
+        await mock.stop()

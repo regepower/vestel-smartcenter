@@ -11,7 +11,7 @@ from datetime import datetime
 
 import aiohttp
 
-from .discovery import fetch_device_info, ssdp_search
+from .discovery import mac_from_arp, pick_smartcenter, ssdp_search
 from .keys import resolve_key
 from .models import (
     Channel,
@@ -43,6 +43,14 @@ class VestelError(Exception):
     """Communication error."""
 
 
+class NotSmartCenterError(VestelError):
+    """Host answers DIAL, but none of its servers is the Vestel SmartCenter one."""
+
+    def __init__(self, host: str, seen: list[str]) -> None:
+        self.seen = seen
+        super().__init__(f"{host}: no Vestel SmartCenter DIAL server found (seen: {', '.join(seen) or '-'})")
+
+
 class VestelTV:
     """One TV. Keep a single instance per TV (v2 answers arrive on the websocket)."""
 
@@ -67,17 +75,17 @@ class VestelTV:
         location: str | None = None,
         timeout: float = 4.0,
     ) -> VestelTV:
-        if location is None:
-            found = await ssdp_search(timeout, target=host)
-            location = found.get(host)
-            if location is None:
+        if location is not None:
+            locations = [location]
+        else:
+            locations = (await ssdp_search(timeout, target=host)).get(host, [])
+            if not locations:
                 raise VestelError(f"No DIAL answer from {host} (TV off or not a SmartCenter TV?)")
-        try:
-            info = await fetch_device_info(session, host, location)
-        except (aiohttp.ClientError, TimeoutError) as err:
-            raise VestelError(f"dd.xml not reachable: {err}") from err
-        if not info.apps_url:
-            raise VestelError("TV did not send an Application-URL header")
+        info, infos = await pick_smartcenter(session, host, locations)
+        if info is None:
+            raise NotSmartCenterError(host, [f"{i.name or '?'} @ {i.location}" for i in infos])
+        if not info.mac:
+            info.mac = mac_from_arp(host)
         return cls(session, info)
 
     @property

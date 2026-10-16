@@ -123,3 +123,13 @@ async def test_full(hass: HomeAssistant, mock_tv: MockTV, hass_client_no_auth) -
 
     assert await hass.config_entries.async_unload(entry_id)
     await hass.async_block_till_done()
+
+
+async def test_flow_rejects_vewd(hass: HomeAssistant, mock_tv: MockTV) -> None:
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"host": "127.0.0.1", "location": f"http://127.0.0.1:{mock_tv.http_port}/vewd.xml"}
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "not_smartcenter"}
+    assert "Vewd" in result["description_placeholders"]["seen"]

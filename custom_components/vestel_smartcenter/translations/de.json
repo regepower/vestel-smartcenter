@@ -18,7 +18,8 @@
     },
     "error": {
       "cannot_connect": "TV nicht erreichbar oder kein SmartCenter-TV. Ist er eingeschaltet?",
-      "no_devices_found": "Kein TV im Netzwerk gefunden."
+      "no_devices_found": "Kein TV im Netzwerk gefunden.",
+      "not_smartcenter": "Unter dieser IP antwortet kein Vestel-SmartCenter-Dienst (gefunden: {seen}). TV einschalten und erneut versuchen; ggf. die dd.xml-URL des SmartCenter-Dienstes angeben."
     },
     "abort": {
       "already_configured": "TV ist bereits eingerichtet."
@@ -29,7 +30,8 @@
       "init": {
         "title": "FollowTV",
         "data": {
-          "rtsp_http_port": "RTSP-über-HTTP-Port (0 = reines RTSP)"
+          "rtsp_http_port": "RTSP-über-HTTP-Port (0 = reines RTSP)",
+          "mac": "MAC-Adresse des TVs (für Einschalten per WOL)"
         }
       }
     }

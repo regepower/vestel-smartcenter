@@ -18,7 +18,8 @@
     },
     "error": {
       "cannot_connect": "TV not reachable or not a SmartCenter TV. Is it switched on?",
-      "no_devices_found": "No TV found on the network."
+      "no_devices_found": "No TV found on the network.",
+      "not_smartcenter": "No Vestel SmartCenter service at this IP (found: {seen}). Switch the TV on and retry, or enter the SmartCenter dd.xml URL."
     },
     "abort": {
       "already_configured": "TV is already configured."
@@ -29,7 +30,8 @@
       "init": {
         "title": "FollowTV",
         "data": {
-          "rtsp_http_port": "RTSP-over-HTTP port (0 = plain RTSP)"
+          "rtsp_http_port": "RTSP-over-HTTP port (0 = plain RTSP)",
+          "mac": "TV MAC address (for Wake-on-LAN)"
         }
       }
     }

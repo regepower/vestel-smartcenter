@@ -101,6 +101,13 @@ class MockTV:
         )
         return web.Response(text=xml, headers={"Application-URL": f"http://127.0.0.1:{self.http_port}/apps/"})
 
+    async def vewd(self, request: web.Request) -> web.Response:
+        xml = (
+            '<?xml version="1.0"?><root xmlns="urn:schemas-upnp-org:device-1-0"><device>'
+            "<friendlyName>Vewd - 127.0.0.1</friendlyName></device></root>"
+        )
+        return web.Response(text=xml, headers={"Application-URL": f"http://127.0.0.1:{self.http_port}/vewd/"})
+
     async def v1_get(self, request: web.Request) -> web.Response:
         cmd = request.match_info["cmd"]
         if cmd == "getwebsocketlink":
@@ -219,6 +226,7 @@ class MockTV:
     async def start(self) -> None:
         app = web.Application()
         app.router.add_get("/dd.xml", self.dd)
+        app.router.add_get("/vewd.xml", self.vewd)
         app.router.add_get("/apps/vr/{cmd}", self.v1_get)
         app.router.add_post("/apps/vr/{cmd}", self.v1_post)
         app.router.add_post("/apps/SmartCenter", self.v2_post)

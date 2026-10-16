@@ -44,7 +44,10 @@ class VestelRemote(VestelEntity, RemoteEntity):
         return {"keys": sorted(KEYS)}
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        await self.hass.async_add_executor_job(self.tv.wake_on_lan)
+        try:
+            await self.hass.async_add_executor_job(self.tv.wake_on_lan)
+        except VestelError as err:
+            raise HomeAssistantError(f"{err} - set the TV MAC in the integration options") from err
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         await self.async_send_command(["POWER"])

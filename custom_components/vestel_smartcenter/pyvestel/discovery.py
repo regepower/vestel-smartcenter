@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import logging
 import socket
 from typing import Any
@@ -34,18 +33,21 @@ def _parse_ssdp(data: bytes) -> dict[str, str]:
 
 class _Collector(asyncio.DatagramProtocol):
     def __init__(self) -> None:
-        self.found: dict[str, str] = {}  # ip -> LOCATION
+        # ip -> all LOCATIONs. A TV can run several DIAL servers (e.g. Vewd browser + Vestel SmartCenter).
+        self.found: dict[str, list[str]] = {}
 
     def datagram_received(self, data: bytes, addr: tuple[str | Any, int]) -> None:
         if not data.startswith(b"HTTP/1.1 200"):
             return
         hdr = _parse_ssdp(data)
         if hdr.get("ST") == DIAL_ST and "LOCATION" in hdr:
-            self.found.setdefault(addr[0], hdr["LOCATION"])
+            locs = self.found.setdefault(addr[0], [])
+            if hdr["LOCATION"] not in locs:
+                locs.append(hdr["LOCATION"])
 
 
-async def ssdp_search(timeout: float = 4.0, target: str | None = None) -> dict[str, str]:
-    """Return {ip: LOCATION} of DIAL devices. With target, also unicast to it."""
+async def ssdp_search(timeout: float = 4.0, target: str | None = None) -> dict[str, list[str]]:
+    """Return {ip: [LOCATION, ...]} of DIAL devices. With target, also unicast to it."""
     loop = asyncio.get_running_loop()
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -59,11 +61,9 @@ async def ssdp_search(timeout: float = 4.0, target: str | None = None) -> dict[s
             if target:
                 transport.sendto(M_SEARCH, (target, SSDP_PORT))
             await asyncio.sleep(timeout / 3)
-            if target and target in proto.found:
-                break
     finally:
         transport.close()
-    return dict(proto.found)
+    return {k: list(v) for k, v in proto.found.items()}
 
 
 async def fetch_device_info(session: aiohttp.ClientSession, host: str, location: str) -> TVInfo:
@@ -79,16 +79,47 @@ async def fetch_device_info(session: aiohttp.ClientSession, host: str, location:
     return info
 
 
+def is_smartcenter(info: TVInfo) -> bool:
+    """Only the Vestel SmartCenter DIAL server carries <locale> data (like the app checks)."""
+    return bool(info.model or info.mac)
+
+
+async def pick_smartcenter(
+    session: aiohttp.ClientSession, host: str, locations: list[str]
+) -> tuple[TVInfo | None, list[TVInfo]]:
+    """Fetch all dd.xml of one IP; return (SmartCenter info or None, all infos)."""
+    infos: list[TVInfo] = []
+    for loc in locations:
+        try:
+            infos.append(await fetch_device_info(session, host, loc))
+        except (aiohttp.ClientError, TimeoutError, ValueError, Exception) as err:  # noqa: BLE001
+            _LOGGER.debug("%s: %s", loc, err)
+    best = next((i for i in infos if is_smartcenter(i) and i.apps_url), None)
+    return best, infos
+
+
+def mac_from_arp(host: str) -> str | None:
+    """Linux ARP cache lookup (HA OS / Docker host network)."""
+    try:
+        with open("/proc/net/arp", encoding="ascii") as fh:
+            for line in fh.read().splitlines()[1:]:
+                cols = line.split()
+                if len(cols) >= 4 and cols[0] == host and cols[3] != "00:00:00:00:00:00":
+                    return cols[3].lower()
+    except OSError:
+        return None
+    return None
+
+
 async def discover(session: aiohttp.ClientSession, timeout: float = 4.0, host: str | None = None) -> list[TVInfo]:
     found = await ssdp_search(timeout, target=host)
     if host:
         found = {k: v for k, v in found.items() if k == host}
     out: list[TVInfo] = []
-    for ip, loc in found.items():
-        with contextlib.suppress(Exception):
-            info = await fetch_device_info(session, ip, loc)
-            if info.model or info.mac:  # only Vestel TVs carry <locale> data
-                out.append(info)
-                continue
-            _LOGGER.debug("%s (%s) is DIAL but not a Vestel SmartCenter TV", ip, loc)
+    for ip, locs in found.items():
+        best, _ = await pick_smartcenter(session, ip, locs)
+        if best is not None:
+            out.append(best)
+        else:
+            _LOGGER.debug("%s (%s) is DIAL but not a Vestel SmartCenter TV", ip, locs)
     return out

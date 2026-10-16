@@ -34,8 +34,10 @@ from pyvestel import (
     FollowTVManager,
     VestelError,
     VestelTV,
-    discover,
+    is_smartcenter,
     parse_stream_url,
+    pick_smartcenter,
+    ssdp_search,
     stream_ts,
 )
 
@@ -123,8 +125,15 @@ async def cmd_followtv(tv: VestelTV, args: argparse.Namespace) -> None:
 async def main(args: argparse.Namespace) -> None:
     async with aiohttp.ClientSession() as session:
         if args.host == "discover":
-            tvs = await discover(session, timeout=args.timeout)
-            _dump([asdict(t) for t in tvs] or "no SmartCenter TV found")
+            found = await ssdp_search(args.timeout)
+            for ip, locs in sorted(found.items()):
+                best, infos = await pick_smartcenter(session, ip, locs)
+                print(f"{ip}{'  <-- SmartCenter TV' if best else ''}")
+                for i in infos:
+                    tag = "SmartCenter" if is_smartcenter(i) else "other DIAL"
+                    print(f"   [{tag}] {i.name!r} model={i.model} dial={i.dial_version} {i.location} apps={i.apps_url}")
+            if not found:
+                print("no DIAL devices answered")
             return
         tv = await _tv(session, args)
         try:

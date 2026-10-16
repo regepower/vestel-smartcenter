@@ -27,7 +27,7 @@ from .const import (
     DOMAIN,
 )
 from .coordinator import VestelConfigEntry, VestelCoordinator
-from .pyvestel import FollowTVManager, TVInfo, VestelTV, fetch_device_info
+from .pyvestel import FollowTVManager, TVInfo, VestelTV, fetch_device_info, is_smartcenter, mac_from_arp
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -53,22 +53,37 @@ async def async_setup_entry(hass: HomeAssistant, entry: VestelConfigEntry) -> bo
         apps_url=d[CONF_APPS_URL],
         location=d.get(CONF_LOCATION),
     )
-    # Refresh dd.xml if the TV is on (apps URL / version may change after updates).
-    if info.location:
-        with contextlib.suppress(Exception):
-            fresh = await fetch_device_info(session, info.host, info.location)
-            if fresh.apps_url:
-                info = fresh
-                hass.config_entries.async_update_entry(
-                    entry,
-                    data={
-                        **entry.data,
-                        CONF_APPS_URL: fresh.apps_url,
-                        CONF_DIAL_VERSION: fresh.dial_version,
-                        CONF_SW_VERSION: fresh.software_version,
-                        CONF_MAC: fresh.mac or d.get(CONF_MAC),
-                    },
-                )
+    # Refresh dd.xml if the TV is on (apps URL / port may change). If the stored server is not the
+    # SmartCenter one (e.g. the Vewd browser's DIAL server), re-discover all DIAL servers of the host.
+    fresh: TVInfo | None = None
+    with contextlib.suppress(Exception):
+        if info.location:
+            cand = await fetch_device_info(session, info.host, info.location)
+            fresh = cand if is_smartcenter(cand) and cand.apps_url else None
+        if fresh is None:
+            fresh = (await VestelTV.from_host(session, info.host)).info
+    if fresh is not None:
+        repaired = not d.get(CONF_MODEL)  # entry was created from a non-SmartCenter DIAL server
+        if not repaired:
+            fresh.name = info.name or fresh.name
+        info = fresh
+        hass.config_entries.async_update_entry(
+            entry,
+            title=(fresh.name or entry.title) if repaired else entry.title,
+            data={
+                **({CONF_NAME: fresh.name} if repaired and fresh.name else {}),
+                **entry.data,
+                CONF_LOCATION: fresh.location,
+                CONF_APPS_URL: fresh.apps_url,
+                CONF_DIAL_VERSION: fresh.dial_version,
+                CONF_MODEL: fresh.model,
+                CONF_SW_VERSION: fresh.software_version,
+                CONF_MAC: fresh.mac or d.get(CONF_MAC),
+            },
+        )
+    info.mac = entry.options.get(CONF_MAC) or info.mac or d.get(CONF_MAC) or mac_from_arp(info.host)
+    if info.mac and not entry.data.get(CONF_MAC):
+        hass.config_entries.async_update_entry(entry, data={**entry.data, CONF_MAC: info.mac})
     if CONF_TOKEN not in entry.data:
         hass.config_entries.async_update_entry(entry, data={**entry.data, CONF_TOKEN: secrets.token_urlsafe(16)})
 
