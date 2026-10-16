@@ -14,6 +14,7 @@ CONF_MODEL: Final = "model"
 CONF_SW_VERSION: Final = "software_version"
 CONF_TOKEN: Final = "stream_token"  # noqa: S105 - config key, not a secret
 CONF_RTSP_HTTP_PORT: Final = "rtsp_http_port"
+CONF_TIMER_TZ: Final = "timer_timezone"  # "utc" | "local"
 
 DEFAULT_RTSP_HTTP_PORT: Final = 8554
 SCAN_INTERVAL: Final = timedelta(seconds=15)

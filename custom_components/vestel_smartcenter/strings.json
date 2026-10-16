@@ -31,7 +31,8 @@
         "title": "FollowTV",
         "data": {
           "rtsp_http_port": "RTSP-over-HTTP port (0 = plain RTSP)",
-          "mac": "TV MAC address (for Wake-on-LAN)"
+          "mac": "TV MAC address (for Wake-on-LAN)",
+          "timer_timezone": "Timezone of TV timer times (utc / local)"
         }
       }
     }

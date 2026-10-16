@@ -25,7 +25,10 @@ async def async_setup_entry(
 
 
 class VestelRemote(VestelEntity, RemoteEntity):
+    """HA remote entity: its switch = TV on/off; keys via remote.send_command (buttons cover the UI)."""
+
     _attr_translation_key = "remote"
+    _attr_entity_registry_visible_default = False
 
     def __init__(self, coordinator: VestelCoordinator) -> None:
         super().__init__(coordinator, "remote")

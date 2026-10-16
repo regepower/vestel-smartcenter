@@ -6,7 +6,7 @@ import re
 import unicodedata
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, tzinfo
 from enum import StrEnum
 
 TIME_FMT = "%Y/%m/%d-%H:%M"  # times from the TV are UTC
@@ -112,7 +112,14 @@ def _strip_decl(text: str) -> str:
     return re.sub(r"<\?xml[^>]*\?>", "", text).strip()
 
 
+def _clean(text: str) -> str:
+    """MB230 appends junk like '</com' (truncated '</command>') after the payload."""
+    text = re.sub(r"<\/?[A-Za-z_]*\s*$", "", text.strip())  # dangling partial tag at the end
+    return re.sub(r"</command>\s*$", "", text)
+
+
 def _parse_fragment(text: str) -> ET.Element:
+    text = _clean(text)
     return ET.fromstring(f"<root>{_strip_decl(_safe_xml(text))}</root>")  # noqa: S314 - LAN device, stdlib parser has no XXE
 
 
@@ -151,7 +158,10 @@ def parse_program(text: str | None) -> Channel | None:
     try:
         root = _parse_fragment(text)
     except ET.ParseError:
-        return None
+        m = re.search(r"<service\b[^>]*/>", text)
+        if not m:
+            return None
+        root = _parse_fragment(m.group(0))
     for el in root.iter():
         if el.tag.lower() == "service":
             return _channel_from(el)
@@ -167,16 +177,16 @@ def _fix_event_names(text: str) -> str:
     return re.sub(r"event_name='(.*?)' start=", repl, text)
 
 
-def _parse_time(val: str | None) -> datetime | None:
+def _parse_time(val: str | None, tz: tzinfo = UTC) -> datetime | None:
     if not val:
         return None
     try:
-        return datetime.strptime(val.strip(), TIME_FMT).replace(tzinfo=UTC)
+        return datetime.strptime(val.strip(), TIME_FMT).replace(tzinfo=tz)
     except ValueError:
         return None
 
 
-def parse_timed_list(text: str | None, kind: str) -> list[TimedObject]:
+def parse_timed_list(text: str | None, kind: str, tz: tzinfo = UTC) -> list[TimedObject]:
     """kind: 'timer' (vr/timerlist) or 'record' (vr/recordlist)."""
     if not text:
         return []
@@ -190,8 +200,8 @@ def parse_timed_list(text: str | None, kind: str) -> list[TimedObject]:
             TimedObject(
                 id=_int(a.pop("id", None)),
                 name=a.pop("event_name", ""),
-                start=_parse_time(a.pop("start", None)),
-                end=_parse_time(a.pop("end", None)),
+                start=_parse_time(a.pop("start", None), tz),
+                end=_parse_time(a.pop("end", None), tz),
                 repeat=a.pop("repeat", None),
                 kind=kind,
                 extra=a,
@@ -288,10 +298,11 @@ def build_timed_xml(
     repeat: str = "o",
     change: str = "a",
     playback: str = "p",
+    tz: tzinfo = UTC,
 ) -> str:
     """Body for addtimer/addrecord (tag = 'addtimer' | 'addrecord'). Times in UTC."""
     ev = deaccent(name).replace("'", " ").replace("&", "+").replace("<", " ").replace(">", " ")
-    s, e = start_utc.astimezone(UTC), end_utc.astimezone(UTC)
+    s, e = start_utc.astimezone(tz), end_utc.astimezone(tz)
     return (
         f"<{tag}><service handle='{channel.handle}' rsn='{channel.rsn}' event_name='{ev}' "
         f"onid='{channel.onid}' tsid='{channel.tsid}' sid='{channel.sid}'/>"

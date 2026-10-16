@@ -24,7 +24,7 @@ from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "custom_components" / "vestel_smartcenter"))
+sys.path.append(str(Path(__file__).resolve().parents[1] / "custom_components" / "vestel_smartcenter"))
 
 import contextlib
 

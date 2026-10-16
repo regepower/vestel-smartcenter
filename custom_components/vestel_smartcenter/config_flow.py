@@ -20,6 +20,7 @@ from .const import (
     CONF_MODEL,
     CONF_RTSP_HTTP_PORT,
     CONF_SW_VERSION,
+    CONF_TIMER_TZ,
     DEFAULT_RTSP_HTTP_PORT,
     DOMAIN,
 )
@@ -120,6 +121,7 @@ class VestelOptionsFlow(OptionsFlow):
             {
                 vol.Optional(CONF_MAC, default=mac): str,
                 vol.Required(CONF_RTSP_HTTP_PORT, default=cur): vol.All(int, vol.Range(0, 65535)),
+                vol.Required(CONF_TIMER_TZ, default=opts.get(CONF_TIMER_TZ, "utc")): vol.In(["utc", "local"]),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)

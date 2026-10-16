@@ -7,7 +7,7 @@ import contextlib
 import logging
 
 from .api import VestelError, VestelTV
-from .followtv import TSBroadcaster, stream_ts
+from .followtv import StreamStats, TSBroadcaster, stream_ts
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -21,6 +21,8 @@ class FollowTVManager:
         self.raw_url: str | None = None
         self.last_error: str | None = None
         self.encrypted: bool | None = None
+        self.raw_response: str | None = None
+        self.stats = StreamStats()
         self._task: asyncio.Task[None] | None = None
         self._stop_handle: asyncio.TimerHandle | None = None
 
@@ -46,6 +48,7 @@ class FollowTVManager:
     async def start_on_tv(self) -> str | None:
         """Only ask the TV for a stream URL (for direct VLC use)."""
         res = await self.tv.start_followtv()
+        self.raw_response = res.raw if res else None
         if res is None:
             self.last_error = "no answer"
             return None
@@ -61,7 +64,8 @@ class FollowTVManager:
                 _LOGGER.warning("FollowTV not started: %s", self.last_error)
                 return
             legacy = (self.tv.info.model or "").lower() == "mb90"
-            async for chunk in stream_ts(url, self.http_port, legacy):
+            self.stats = StreamStats()
+            async for chunk in stream_ts(url, self.http_port, legacy, self.stats):
                 self.bus.publish(chunk)
         except (VestelError, OSError, TimeoutError, Exception) as err:  # noqa: BLE001
             self.last_error = repr(err)

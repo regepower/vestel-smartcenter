@@ -176,6 +176,8 @@ class RtspSource:
         self._pending: dict[int, asyncio.Future[_Resp]] = {}
         self._control_url = url
         self._reading = False
+        self.log: list[str] = []  # handshake trace for diagnostics
+        self.mode: str | None = None
 
     # transport -------------------------------------------------------------
     async def _open_http_tunnel(self) -> None:
@@ -190,6 +192,7 @@ class RtspSource:
         )
         await w.drain()
         status = await asyncio.wait_for(r.readline(), self.timeout)
+        self.log.append(f"HTTP-tunnel GET :{self.http_port} -> {status.decode(errors='replace').strip()}")
         if b" 200" not in status:
             w.close()
             raise RtspError(f"HTTP tunnel GET refused: {status!r}")
@@ -220,6 +223,7 @@ class RtspSource:
         lines += [f"{k}: {v}" for k, v in (headers or {}).items()]
         msg = ("\r\n".join(lines) + "\r\n\r\n").encode()
         _LOGGER.debug("rtsp -> %s", msg)
+        self.log.append(f"-> {method} {url}")
         fut: asyncio.Future[_Resp] = asyncio.get_running_loop().create_future()
         self._pending[self._cseq] = fut
         self._writer.write(base64.b64encode(msg) if self._tunnel else msg)
@@ -264,6 +268,7 @@ class RtspSource:
             headers[k.strip().lower()] = v.strip()
         body = await r.readexactly(int(headers.get("content-length", "0") or 0))
         _LOGGER.debug("rtsp <- %s %s", status, headers)
+        self.log.append(f"<- {status} {dict(headers)} {body[:400].decode(errors='replace')}")
         return _Resp(status, headers, body)
 
     # session ---------------------------------------------------------------
@@ -275,9 +280,11 @@ class RtspSource:
                 await (self._open_http_tunnel() if mode == "http" else self._open_tcp())
                 await self._handshake()
                 _LOGGER.info("FollowTV RTSP via %s established", mode)
+                self.mode = mode
                 return
             except (OSError, TimeoutError, RtspError, asyncio.IncompleteReadError) as err:
                 errors.append(f"{mode}: {err!r}")
+                self.log.append(f"{mode} failed: {err!r}")
                 await self.close()
         raise RtspError("; ".join(errors))
 
@@ -407,24 +414,82 @@ class TSBroadcaster:
             q.put_nowait(chunk)
 
 
-async def stream_ts(raw_url: str, http_port: int | None = 8554, legacy_encrypt: bool = False) -> AsyncIterator[bytes]:
+@dataclass
+class StreamStats:
+    """Diagnostics of the current/last FollowTV stream."""
+
+    url: str | None = None
+    encrypted: bool = False
+    transport: str | None = None
+    rtsp_log: list[str] | None = None
+    payloads: int = 0
+    bytes_in: int = 0
+    bytes_out: int = 0
+    payload_sizes: list[int] | None = None
+    first_bytes_hex: str | None = None
+    first_decrypted_hex: str | None = None
+    repack_mode: str | None = None
+    error: str | None = None
+
+
+NO_DATA_TIMEOUT = 15.0
+NO_SYNC_LIMIT = 3_000_000
+
+
+async def stream_ts(
+    raw_url: str,
+    http_port: int | None = 8554,
+    legacy_encrypt: bool = False,
+    stats: StreamStats | None = None,
+) -> AsyncIterator[bytes]:
     """Connect to a FollowTV URL (as returned by the TV) and yield plain TS bytes."""
+    st = stats or StreamStats()
     target = parse_stream_url(raw_url)
+    st.url, st.encrypted, st.payload_sizes = target.url, target.key is not None, []
+    rep = TSRepacker(target.key, legacy_encrypt)
+
+    def account(chunk: bytes) -> bytes:
+        st.payloads += 1
+        st.bytes_in += len(chunk)
+        if st.payload_sizes is not None and len(st.payload_sizes) < 20:
+            st.payload_sizes.append(len(chunk))
+        if st.first_bytes_hex is None:
+            st.first_bytes_hex = chunk[:384].hex()
+            if target.key is not None and len(chunk) >= 192:
+                st.first_decrypted_hex = rep._aes(bytes(chunk[:192])).hex()
+        out = rep.feed(chunk)
+        st.repack_mode = rep.mode
+        st.bytes_out += len(out)
+        if st.bytes_out == 0 and st.bytes_in > NO_SYNC_LIMIT:
+            raise RtspError(f"{st.bytes_in} bytes received but no MPEG-TS sync found (mode={rep.mode})")
+        return out
+
     if target.url.startswith("http"):
         import aiohttp  # noqa: PLC0415
 
-        rep = TSRepacker(target.key, legacy_encrypt)
+        st.transport = "http"
         async with aiohttp.ClientSession() as s, s.get(target.url) as r:
             async for chunk in r.content.iter_chunked(PKT * 64):
-                if out := rep.feed(chunk):
+                if out := account(chunk):
                     yield out
         return
     src = RtspSource(target.url, http_port)
-    await src.start()
-    rep = TSRepacker(target.key, legacy_encrypt)
+    st.rtsp_log = src.log
     try:
-        async for payload in src.payloads():
-            if out := rep.feed(payload):
+        await src.start()
+        st.transport = src.mode
+        it = src.payloads().__aiter__()
+        while True:
+            try:
+                payload = await asyncio.wait_for(it.__anext__(), NO_DATA_TIMEOUT)
+            except StopAsyncIteration:
+                return
+            except TimeoutError as err:
+                raise RtspError(f"no stream data for {NO_DATA_TIMEOUT:.0f}s after PLAY") from err
+            if out := account(payload):
                 yield out
+    except Exception as err:
+        st.error = repr(err)
+        raise
     finally:
         await src.close()

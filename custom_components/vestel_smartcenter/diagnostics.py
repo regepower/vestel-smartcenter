@@ -29,6 +29,12 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: VestelC
             "channel": asdict(d.channel) if d and d.channel else None,
             "channel_count": len(d.channels) if d else 0,
         },
-        "followtv": {"running": coord.followtv.running, "last_error": coord.followtv.last_error},
+        "followtv": {
+            "running": coord.followtv.running,
+            "last_error": coord.followtv.last_error,
+            "tv_response": coord.followtv.raw_response,
+            "local_url": coord.local_stream.url if coord.local_stream else None,
+            "stats": asdict(coord.followtv.stats),
+        },
         "history": list(tv.history),
     }

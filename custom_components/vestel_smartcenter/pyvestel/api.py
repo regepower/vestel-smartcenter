@@ -9,7 +9,7 @@ import socket
 import time
 from collections import deque
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime, tzinfo
 
 import aiohttp
 
@@ -68,6 +68,7 @@ class VestelTV:
         self._listeners: list[EventCallback] = []
         self._closing = False
         self.history: deque[dict[str, object]] = deque(maxlen=60)
+        self.tz: tzinfo = UTC  # timezone of timer times on the TV (app assumes UTC)
         self.last_status: int | None = None
 
     # ------------------------------------------------------------------ setup
@@ -296,10 +297,10 @@ class VestelTV:
         return parse_state(await self._query("vr/tvstate", "tvstate"))
 
     async def get_reminders(self) -> list[TimedObject]:
-        return parse_timed_list(await self._query("vr/timerlist", "timerlist", 20), "timer")
+        return parse_timed_list(await self._query("vr/timerlist", "timerlist", 20), "timer", self.tz)
 
     async def get_recordings(self) -> list[TimedObject]:
-        return parse_timed_list(await self._query("vr/recordlist", "recordlist", 20), "record")
+        return parse_timed_list(await self._query("vr/recordlist", "recordlist", 20), "record", self.tz)
 
     async def get_special_apps(self) -> dict[str, bool]:
         return parse_special_apps(await self._query("vr/specialportalapps", "specialportalapps"))
@@ -385,7 +386,7 @@ class VestelTV:
     ) -> str | None:
         """kind: 'timer' (reminder) or 'record'. Returns the new id (if reported)."""
         tag = "addtimer" if kind == "timer" else "addrecord"
-        body = build_timed_xml(tag, channel, name, start, end, repeat)
+        body = build_timed_xml(tag, channel, name, start, end, repeat, tz=self.tz)
         if self.info.is_v2:
             resp = await self._v2(body, True, 20)
         else:

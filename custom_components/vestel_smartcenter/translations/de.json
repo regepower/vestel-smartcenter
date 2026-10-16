@@ -31,7 +31,8 @@
         "title": "FollowTV",
         "data": {
           "rtsp_http_port": "RTSP-über-HTTP-Port (0 = reines RTSP)",
-          "mac": "MAC-Adresse des TVs (für Einschalten per WOL)"
+          "mac": "MAC-Adresse des TVs (für Einschalten per WOL)",
+          "timer_timezone": "Zeitzone der Timer am TV (utc / local) – falsche Uhrzeiten im Kalender? umstellen"
         }
       }
     }

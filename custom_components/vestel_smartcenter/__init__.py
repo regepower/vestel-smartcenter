@@ -14,6 +14,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
+from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_APPS_URL,
@@ -22,6 +23,7 @@ from .const import (
     CONF_MODEL,
     CONF_RTSP_HTTP_PORT,
     CONF_SW_VERSION,
+    CONF_TIMER_TZ,
     CONF_TOKEN,
     DEFAULT_RTSP_HTTP_PORT,
     DOMAIN,
@@ -95,6 +97,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: VestelConfigEntry) -> bo
         hass.config_entries.async_update_entry(entry, data={**entry.data, CONF_TOKEN: secrets.token_urlsafe(16)})
 
     tv = VestelTV(session, info)
+    if entry.options.get(CONF_TIMER_TZ, "utc") == "local":
+        tv.tz = dt_util.get_default_time_zone()
     port = entry.options.get(CONF_RTSP_HTTP_PORT, DEFAULT_RTSP_HTTP_PORT)
     followtv = FollowTVManager(tv, http_port=port or None)
     coordinator = VestelCoordinator(hass, entry, tv, followtv)

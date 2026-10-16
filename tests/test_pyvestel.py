@@ -12,7 +12,7 @@ import aiohttp
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "custom_components" / "vestel_smartcenter"))
+sys.path.append(str(ROOT / "custom_components" / "vestel_smartcenter"))
 sys.path.insert(0, str(Path(__file__).parent))
 
 from mock_tv import KEY_WORDS, MockTV, derive_key
@@ -196,6 +196,8 @@ async def test_manager_fanout(ports: dict[str, int], monkeypatch: pytest.MonkeyP
         c2 = await asyncio.wait_for(q2.get(), 5)
         assert c1 and c2 and c1[0] == 0x47
         assert mgr.encrypted is True
+        assert mgr.stats.bytes_out > 0 and mgr.stats.transport == "http" and mgr.stats.first_decrypted_hex
+        assert mgr.raw_response and mgr.raw_response.startswith("followtv_started_status:0")
         mgr.unsubscribe(q1)
         mgr.unsubscribe(q2)
         await asyncio.sleep(0.4)

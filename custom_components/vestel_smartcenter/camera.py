@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from homeassistant.components.camera import Camera, CameraEntityFeature
+from homeassistant.components.ffmpeg import async_get_image
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
@@ -39,7 +42,14 @@ class VestelFollowTVCamera(VestelEntity, Camera):
     @property
     def extra_state_attributes(self) -> dict[str, object]:
         mgr = self.coordinator.followtv
-        return {"encrypted": mgr.encrypted, "last_error": mgr.last_error}
+        return {
+            "encrypted": mgr.encrypted,
+            "last_error": mgr.last_error or mgr.stats.error,
+            "tv_response": mgr.raw_response,
+            "transport": mgr.stats.transport,
+            "bytes_in": mgr.stats.bytes_in,
+            "bytes_out": mgr.stats.bytes_out,
+        }
 
     async def stream_source(self) -> str | None:
         """Pulled by HA's stream worker; the first client starts FollowTV on the TV."""
@@ -47,4 +57,12 @@ class VestelFollowTVCamera(VestelEntity, Camera):
         return ls.url if ls else None
 
     async def async_camera_image(self, width: int | None = None, height: int | None = None) -> bytes | None:
-        return None  # no still images; the live stream is shown instead
+        """Snapshot: grab one frame of the FollowTV stream with ffmpeg."""
+        ls = self.coordinator.local_stream
+        if not (ls and ls.url and self.available):
+            return None
+        try:
+            async with asyncio.timeout(45):
+                return await async_get_image(self.hass, ls.url, width=width, height=height)
+        except TimeoutError:
+            return None
