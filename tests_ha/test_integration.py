@@ -328,3 +328,12 @@ async def test_recording_power_blueprint_home(hass: HomeAssistant, mock_tv: Mock
     await _settle()
     assert hass.states.get("input_boolean.tv_socket").state == "on"
     assert len(notes) == 1
+
+
+async def test_standby_still_reads_timers(hass: HomeAssistant, mock_tv: MockTV) -> None:
+    mock_tv.standby = True
+    entry_id = await _setup(hass, mock_tv)
+    assert hass.states.get("media_player.telefunken_mock").state == "off"
+    assert hass.states.get("sensor.telefunken_mock_recordings").state == "1"
+    assert hass.states.get("camera.telefunken_mock_followtv").state == "unavailable"
+    assert await hass.config_entries.async_unload(entry_id)

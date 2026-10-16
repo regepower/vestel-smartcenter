@@ -59,9 +59,12 @@ class MockTV:
         self._servers: list[asyncio.base_events.Server] = []
         self._tunnels: dict[str, asyncio.StreamWriter] = {}
         self.rtsp_methods: list[str] = []
+        self.standby = False  # UI asleep: only timer lists answer
 
     # ---------------------------------------------------------------- answers
     def answer(self, cmd: str) -> str | None:
+        if self.standby and cmd not in ("timerlist", "recordlist"):
+            return None
         follow = f"rtsp://127.0.0.1:{self.rtsp_port}/followtv"
         if self.encrypted:
             follow += "|" + "|".join(KEY_WORDS)

@@ -109,25 +109,26 @@ class VestelCoordinator(DataUpdateCoordinator[TVData]):
             data.online = False
             return data
         try:
-            async with asyncio.timeout(90):  # never let one poll hang
-                await self._poll(data)
-            data.online = True
+            async with asyncio.timeout(120):  # never let one poll hang
+                data.online = await self._poll(data)
         except (VestelError, TimeoutError) as err:
             _LOGGER.debug("update failed: %s", err)
             data.online = False
         return data
 
-    async def _poll(self, data: TVData) -> None:
+    async def _poll(self, data: TVData) -> bool:
+        """Returns True if the TV UI answers (on). Timer lists are tried even in standby."""
         if not self.tv.connected:
             await self.tv.connect()
-        state_raw = await self.tv.get_state()
-        if state_raw is None:
-            raise VestelError("TV does not answer (standby?)")
-        data.state = state_raw
-        data.volume = await self.tv.get_volume()
-        data.channel = await self.tv.get_current_channel()
+        state = await self.tv.get_state()
         now = dt_util.utcnow()
-        if self._channels_at is None or now - self._channels_at > CHANNELS_INTERVAL or not data.channels:
+        if state is not None:
+            data.state = state
+            data.volume = await self.tv.get_volume()
+            data.channel = await self.tv.get_current_channel()
+        if state is not None and (
+            self._channels_at is None or now - self._channels_at > CHANNELS_INTERVAL or not data.channels
+        ):
             chans = await self.tv.get_channels()
             if chans:
                 data.channels = chans
@@ -141,6 +142,7 @@ class VestelCoordinator(DataUpdateCoordinator[TVData]):
                 self._save_cache(data)
             except VestelError as err:  # keep the cached lists
                 _LOGGER.debug("timer list update failed: %s", err)
+        return state is not None
 
     def invalidate(self, channels: bool = False, timers: bool = False) -> None:
         if channels:
