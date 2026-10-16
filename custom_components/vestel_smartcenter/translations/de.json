@@ -183,6 +183,16 @@
       "key_9": {
         "name": "Taste 9"
       }
+    },
+    "camera": {
+      "followtv": {
+        "name": "FollowTV"
+      }
+    },
+    "calendar": {
+      "timers": {
+        "name": "TV-Timer"
+      }
     }
   },
   "selector": {

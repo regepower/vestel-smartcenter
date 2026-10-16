@@ -155,3 +155,34 @@ async def test_buttons_raw_diagnostics(hass: HomeAssistant, mock_tv: MockTV) -> 
     assert diag["entry"]["stream_token"] == "**REDACTED**"
     assert any(h["method"] == "POST" for h in diag["history"])
     assert await hass.config_entries.async_unload(entry_id)
+
+
+async def test_camera_and_calendar(hass: HomeAssistant, mock_tv: MockTV, socket_enabled: None) -> None:
+    import aiohttp
+    from homeassistant.components.camera import async_get_stream_source
+
+    entry_id = await _setup(hass, mock_tv)
+    cam = hass.states.get("camera.telefunken_mock_followtv")
+    assert cam is not None and cam.state != "unavailable"
+    url = await async_get_stream_source(hass, cam.entity_id)
+    assert url is not None and url.startswith("http://127.0.0.1:")
+    async with aiohttp.ClientSession() as s, s.get(url) as r:
+        data = await r.content.read(188 * 20)
+    assert r.status == 200 and data[0] == 0x47 and data[188] == 0x47
+
+    cal = hass.states.get("calendar.telefunken_mock_tv_timers")
+    assert cal is not None
+    resp = await hass.services.async_call(
+        "calendar",
+        "get_events",
+        {"entity_id": cal.entity_id, "start_date_time": "2026-10-17 00:00:00", "end_date_time": "2026-10-31 00:00:00"},
+        blocking=True,
+        return_response=True,
+    )
+    events = resp[cal.entity_id]["events"]
+    summaries = [e["summary"] for e in events]
+    assert any("Tatort" in x for x in summaries)
+    # weekly recording 'heute' expands to 2 occurrences in the window
+    assert sum("heute" in x for x in summaries) == 2
+    assert await hass.config_entries.async_unload(entry_id)
+    await hass.async_block_till_done()

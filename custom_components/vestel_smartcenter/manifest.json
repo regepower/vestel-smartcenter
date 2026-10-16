@@ -1,13 +1,20 @@
 {
   "domain": "vestel_smartcenter",
   "name": "Vestel / Telefunken SmartCenter",
-  "codeowners": ["@regepower"],
+  "after_dependencies": [
+    "stream"
+  ],
+  "codeowners": [
+    "@regepower"
+  ],
   "config_flow": true,
-  "dependencies": ["http"],
+  "dependencies": [
+    "http"
+  ],
   "documentation": "https://github.com/regepower/vestel-smartcenter",
   "integration_type": "device",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/regepower/vestel-smartcenter/issues",
   "requirements": [],
-  "version": "0.1.2"
+  "version": "0.2.0"
 }

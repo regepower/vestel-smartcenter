@@ -31,7 +31,14 @@ from .pyvestel import FollowTVManager, TVInfo, VestelTV, fetch_device_info, is_s
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [Platform.BUTTON, Platform.MEDIA_PLAYER, Platform.REMOTE, Platform.SENSOR]
+PLATFORMS: list[Platform] = [
+    Platform.BUTTON,
+    Platform.CALENDAR,
+    Platform.CAMERA,
+    Platform.MEDIA_PLAYER,
+    Platform.REMOTE,
+    Platform.SENSOR,
+]
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
@@ -91,6 +98,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: VestelConfigEntry) -> bo
     port = entry.options.get(CONF_RTSP_HTTP_PORT, DEFAULT_RTSP_HTTP_PORT)
     followtv = FollowTVManager(tv, http_port=port or None)
     coordinator = VestelCoordinator(hass, entry, tv, followtv)
+    coordinator.local_stream = LocalStreamServer(followtv)
+    await coordinator.local_stream.start()
     await coordinator.async_refresh()
     entry.runtime_data = coordinator
 
@@ -108,6 +117,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: VestelConfigEntry) -> b
     if ok:
         coord = entry.runtime_data
         await coord.followtv.stop()
+        if coord.local_stream is not None:
+            await coord.local_stream.stop()
         await coord.tv.disconnect()
     return ok
 
@@ -127,23 +138,54 @@ class FollowTVView(HomeAssistantView):
         token = entry.data.get(CONF_TOKEN)
         if not token or not secrets.compare_digest(request.query.get("token", ""), token):
             return web.Response(status=401)
-        mgr: FollowTVManager = entry.runtime_data.followtv
-        q = mgr.subscribe()
-        first = await _first_chunk(q)
-        if first is None:
-            mgr.unsubscribe(q)
-            return web.Response(status=503, text=f"FollowTV not available: {mgr.last_error}")
-        resp = web.StreamResponse(headers={"Content-Type": "video/mp2t", "Cache-Control": "no-cache"})
-        await resp.prepare(request)
-        try:
-            await resp.write(first)
-            while (chunk := await q.get()) is not None:
-                await resp.write(chunk)
-        except ConnectionResetError:
-            pass
-        finally:
-            mgr.unsubscribe(q)
-        return resp
+        return await stream_to_response(request, entry.runtime_data.followtv)
+
+
+async def stream_to_response(request: web.Request, mgr: FollowTVManager) -> web.StreamResponse:
+    q = mgr.subscribe()
+    first = await _first_chunk(q)
+    if first is None:
+        mgr.unsubscribe(q)
+        return web.Response(status=503, text=f"FollowTV not available: {mgr.last_error}")
+    resp = web.StreamResponse(headers={"Content-Type": "video/mp2t", "Cache-Control": "no-cache"})
+    await resp.prepare(request)
+    try:
+        await resp.write(first)
+        while (chunk := await q.get()) is not None:
+            await resp.write(chunk)
+    except ConnectionResetError:
+        pass
+    finally:
+        mgr.unsubscribe(q)
+    return resp
+
+
+class LocalStreamServer:
+    """Loopback-only HTTP server for HA's stream worker (avoids HA auth/SSL/port issues)."""
+
+    def __init__(self, mgr: FollowTVManager) -> None:
+        self._mgr = mgr
+        self._runner: web.AppRunner | None = None
+        self.url: str | None = None
+
+    async def start(self) -> None:
+        app = web.Application()
+
+        async def handle(request: web.Request) -> web.StreamResponse:
+            return await stream_to_response(request, self._mgr)
+
+        app.router.add_get("/followtv.ts", handle)
+        self._runner = web.AppRunner(app, access_log=None)
+        await self._runner.setup()
+        site = web.TCPSite(self._runner, "127.0.0.1", 0)
+        await site.start()
+        port = site._server.sockets[0].getsockname()[1]  # type: ignore[union-attr]
+        self.url = f"http://127.0.0.1:{port}/followtv.ts"
+
+    async def stop(self) -> None:
+        if self._runner is not None:
+            await self._runner.cleanup()
+            self._runner = None
 
 
 async def _first_chunk(q: asyncio.Queue[bytes | None]) -> bytes | None:

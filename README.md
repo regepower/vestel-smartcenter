@@ -27,9 +27,14 @@ Bei Problemen `-v` anhängen und Log schicken.
 Entitäten:
 - `media_player.*` – Ein (WOL)/Aus, Lautstärke, Mute (Toggle), Senderwahl über `source`, P+/P−, Play/Pause/Stop, `play_media` (Sendername, Nummer oder URL)
 - `remote.*` – beliebige Tasten: `POWER HOME MENU OK UP DOWN LEFT RIGHT BACK EXIT VOL_UP VOL_DOWN MUTE PROG_UP PROG_DOWN SOURCE EPG INFO TEXT RED GREEN YELLOW BLUE PLAY PAUSE STOP RECORD 0-9 …`
+- `camera.*_followtv` – FollowTV-Livebild im Dashboard (Karte „Bild-Entität“ / „Picture Entity“, Kameraansicht *Live*). Startet FollowTV beim Öffnen, stoppt 5 s nach dem Schließen. Benötigt die Standard-Integration `stream` (in `default_config` enthalten).
+- `calendar.*_tv_timer` – Erinnerungen und geplante Aufnahmen als Kalender (inkl. täglich/wöchentlich)
+- `button.*` – Tasten der Fernbedienung (weitere in der Entitätsliste aktivierbar)
 - `sensor.*_sender`, `*_erinnerungen`, `*_aufnahme_timer` (Liste in Attribut `items`), `*_tv_status`, `*_senderliste` (deaktiviert)
 
-Aktionen (`vestel_smartcenter.*`): `add_timer`, `delete_timer`, `open_url`, `send_text`, `set_eco_mode`, `start_followtv`, `stop_followtv`, `refresh_channels`.
+Aktionen (`vestel_smartcenter.*`): `add_timer`, `delete_timer`, `open_url`, `send_text`, `set_eco_mode`, `start_followtv`, `stop_followtv`, `refresh_channels`, `send_raw` (Debug).
+
+Diagnose: *Integration → ⋮ → Diagnose herunterladen* enthält die letzten 60 Anfragen/Antworten des TVs.
 
 ## 3. FollowTV in VLC
 ```yaml

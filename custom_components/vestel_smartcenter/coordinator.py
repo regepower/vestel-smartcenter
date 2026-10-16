@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
@@ -13,6 +14,9 @@ from homeassistant.util import dt as dt_util
 
 from .const import CHANNELS_INTERVAL, DOMAIN, SCAN_INTERVAL, TIMERS_INTERVAL
 from .pyvestel import Channel, FollowTVManager, TimedObject, TVState, VestelError, VestelTV
+
+if TYPE_CHECKING:
+    from . import LocalStreamServer
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,6 +46,7 @@ class VestelCoordinator(DataUpdateCoordinator[TVData]):
         super().__init__(hass, _LOGGER, config_entry=entry, name=f"{DOMAIN} {tv.host}", update_interval=SCAN_INTERVAL)
         self.tv = tv
         self.followtv = followtv
+        self.local_stream: LocalStreamServer | None = None
         self._channels_at: datetime | None = None
         self._timers_at: datetime | None = None
         tv.add_listener(self._on_event)
