@@ -104,6 +104,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: VestelConfigEntry) -> bo
     coordinator = VestelCoordinator(hass, entry, tv, followtv)
     coordinator.local_stream = LocalStreamServer(followtv)
     await coordinator.local_stream.start()
+    await coordinator.async_load_cache()
     await coordinator.async_refresh()
     entry.runtime_data = coordinator
 

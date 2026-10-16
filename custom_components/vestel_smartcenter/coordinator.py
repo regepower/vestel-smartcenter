@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
@@ -49,7 +50,30 @@ class VestelCoordinator(DataUpdateCoordinator[TVData]):
         self.local_stream: LocalStreamServer | None = None
         self._channels_at: datetime | None = None
         self._timers_at: datetime | None = None
+        # Timers/channels survive HA restarts while the TV (or its power socket) is off.
+        self._store: Store[dict[str, Any]] = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}")
+        self._saved: dict[str, Any] = {}
         tv.add_listener(self._on_event)
+
+    async def async_load_cache(self) -> None:
+        raw = await self._store.async_load() or {}
+        self._saved = raw
+        data = TVData(
+            channels=[Channel(**c) for c in raw.get("channels", [])],
+            reminders=[_timed_from(t) for t in raw.get("reminders", [])],
+            recordings=[_timed_from(t) for t in raw.get("recordings", [])],
+        )
+        self.async_set_updated_data(data)
+
+    def _save_cache(self, data: TVData) -> None:
+        payload = {
+            "channels": [asdict(c) for c in data.channels],
+            "reminders": [_timed_to(t) for t in data.reminders],
+            "recordings": [_timed_to(t) for t in data.recordings],
+        }
+        if payload != self._saved:  # write only on change
+            self._saved = payload
+            self.hass.async_create_task(self._store.async_save(payload))
 
     @callback
     def _on_event(self, event: str) -> None:
@@ -94,10 +118,15 @@ class VestelCoordinator(DataUpdateCoordinator[TVData]):
                 if chans:
                     data.channels = chans
                     self._channels_at = now
+                    self._save_cache(data)
             if self._timers_at is None or now - self._timers_at > TIMERS_INTERVAL:
-                data.reminders = await self.tv.get_reminders()
-                data.recordings = await self.tv.get_recordings()
-                self._timers_at = now
+                try:
+                    data.reminders = await self.tv.get_reminders()
+                    data.recordings = await self.tv.get_recordings()
+                    self._timers_at = now
+                    self._save_cache(data)
+                except VestelError as err:  # keep the cached lists
+                    _LOGGER.debug("timer list update failed: %s", err)
             data.online = True
         except VestelError as err:
             _LOGGER.debug("update failed: %s", err)
@@ -118,3 +147,27 @@ class VestelCoordinator(DataUpdateCoordinator[TVData]):
                 return ch
         low = s.lower()
         return next((c for c in chans if c.name.lower() == low), None)
+
+
+def _timed_to(t: TimedObject) -> dict[str, Any]:
+    return {
+        "id": t.id,
+        "name": t.name,
+        "start": t.start.isoformat() if t.start else None,
+        "end": t.end.isoformat() if t.end else None,
+        "repeat": t.repeat,
+        "kind": t.kind,
+        "extra": t.extra,
+    }
+
+
+def _timed_from(d: dict[str, Any]) -> TimedObject:
+    return TimedObject(
+        id=d["id"],
+        name=d["name"],
+        start=dt_util.parse_datetime(d["start"]) if d.get("start") else None,
+        end=dt_util.parse_datetime(d["end"]) if d.get("end") else None,
+        repeat=d.get("repeat"),
+        kind=d.get("kind", "timer"),
+        extra=d.get("extra") or {},
+    )

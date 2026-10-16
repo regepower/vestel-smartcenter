@@ -297,10 +297,16 @@ class VestelTV:
         return parse_state(await self._query("vr/tvstate", "tvstate"))
 
     async def get_reminders(self) -> list[TimedObject]:
-        return parse_timed_list(await self._query("vr/timerlist", "timerlist", 20), "timer", self.tz)
+        raw = await self._query("vr/timerlist", "timerlist", 20)
+        if not raw:
+            raise VestelError("no answer to timerlist")
+        return parse_timed_list(raw, "timer", self.tz)
 
     async def get_recordings(self) -> list[TimedObject]:
-        return parse_timed_list(await self._query("vr/recordlist", "recordlist", 20), "record", self.tz)
+        raw = await self._query("vr/recordlist", "recordlist", 20)
+        if not raw:
+            raise VestelError("no answer to recordlist")
+        return parse_timed_list(raw, "record", self.tz)
 
     async def get_special_apps(self) -> dict[str, bool]:
         return parse_special_apps(await self._query("vr/specialportalapps", "specialportalapps"))

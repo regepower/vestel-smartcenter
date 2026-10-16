@@ -186,3 +186,141 @@ async def test_camera_and_calendar(hass: HomeAssistant, mock_tv: MockTV, socket_
     assert sum("heute" in x for x in summaries) == 2
     assert await hass.config_entries.async_unload(entry_id)
     await hass.async_block_till_done()
+
+
+async def test_timers_survive_restart_with_tv_off(hass: HomeAssistant, mock_tv: MockTV, hass_storage) -> None:
+    entry_id = await _setup(hass, mock_tv)
+    await hass.async_block_till_done()
+    assert hass_storage[f"{DOMAIN}.{entry_id}"]["data"]["recordings"][0]["name"] == "heute"
+    assert await hass.config_entries.async_unload(entry_id)
+    await mock_tv.stop()  # TV + socket off
+    assert await hass.config_entries.async_setup(entry_id)
+    await hass.async_block_till_done()
+    assert hass.states.get("media_player.telefunken_mock").state == "off"
+    assert hass.states.get("sensor.telefunken_mock_recordings").state == "1"
+    resp = await hass.services.async_call(
+        "calendar",
+        "get_events",
+        {
+            "entity_id": "calendar.telefunken_mock_tv_timers",
+            "start_date_time": "2026-10-17 00:00:00",
+            "end_date_time": "2026-10-31 00:00:00",
+        },
+        blocking=True,
+        return_response=True,
+    )
+    assert any("Tatort" in e["summary"] for e in resp["calendar.telefunken_mock_tv_timers"]["events"])
+    assert await hass.config_entries.async_unload(entry_id)
+
+
+async def _settle() -> None:
+    """block_till_done would wait for the automation's running delay -> just let the loop run."""
+    import asyncio
+
+    for _ in range(500):  # sleep(0): time is frozen, timed sleeps would never wake
+        await asyncio.sleep(0)
+
+
+async def test_recording_power_blueprint(hass: HomeAssistant, mock_tv: MockTV, freezer) -> None:
+    import shutil
+    from datetime import datetime
+
+    from homeassistant.util import dt as dt_util
+    from pytest_homeassistant_custom_component.common import async_fire_time_changed, async_mock_service
+
+    root = Path(__file__).resolve().parents[1]
+    dst = Path(hass.config.path("blueprints/automation/vestel_smartcenter"))
+    dst.mkdir(parents=True, exist_ok=True)
+    shutil.copy(root / "blueprints/automation/vestel_smartcenter/recording_power.yaml", dst)
+
+    # mock recording 'heute': 2026-10-17 17:00-17:20 UTC, weekly
+    freezer.move_to(datetime(2026, 10, 17, 16, 40, tzinfo=dt_util.UTC))
+    await _setup(hass, mock_tv)
+    notes = async_mock_service(hass, "notify", "handy")
+    assert await async_setup_component(hass, "homeassistant", {})
+    assert await async_setup_component(hass, "input_boolean", {"input_boolean": {"tv_socket": {}}})
+    hass.states.async_set("person.trolle", "not_home")
+    assert await async_setup_component(
+        hass,
+        "automation",
+        {
+            "automation": {
+                "use_blueprint": {
+                    "path": "vestel_smartcenter/recording_power.yaml",
+                    "input": {
+                        "tv_calendar": "calendar.telefunken_mock_tv_timers",
+                        "person": "person.trolle",
+                        "power_switch": "input_boolean.tv_socket",
+                        "notify_service": "notify.handy",
+                    },
+                }
+            }
+        },
+    )
+    await hass.async_block_till_done()
+
+    async def jump(t: datetime) -> None:
+        freezer.move_to(t)
+        async_fire_time_changed(hass, t)
+        await _settle()
+
+    await jump(datetime(2026, 10, 17, 16, 50, 5, tzinfo=dt_util.UTC))
+    assert hass.states.get("input_boolean.tv_socket").state == "on"
+    assert len(notes) == 1
+    assert notes[0].data["message"].startswith("Strom im Schlafzimmer eingeschaltet für Aufnahme von: heute")
+
+    await jump(datetime(2026, 10, 17, 17, 30, 10, tzinfo=dt_util.UTC))
+    await jump(datetime(2026, 10, 17, 17, 30, 20, tzinfo=dt_util.UTC))
+    assert hass.states.get("input_boolean.tv_socket").state == "off"
+    assert len(notes) == 2
+    assert notes[1].data["message"] == "Strom im Schlafzimmer wurde wieder ausgeschaltet nach Aufnahme von: heute"
+
+
+async def test_recording_power_blueprint_home(hass: HomeAssistant, mock_tv: MockTV, freezer) -> None:
+    """Person comes home during the recording -> power stays on, no second message."""
+    import shutil
+    from datetime import datetime
+
+    from homeassistant.util import dt as dt_util
+    from pytest_homeassistant_custom_component.common import async_fire_time_changed, async_mock_service
+
+    root = Path(__file__).resolve().parents[1]
+    dst = Path(hass.config.path("blueprints/automation/vestel_smartcenter"))
+    dst.mkdir(parents=True, exist_ok=True)
+    shutil.copy(root / "blueprints/automation/vestel_smartcenter/recording_power.yaml", dst)
+    freezer.move_to(datetime(2026, 10, 17, 16, 40, tzinfo=dt_util.UTC))
+    await _setup(hass, mock_tv)
+    notes = async_mock_service(hass, "notify", "handy")
+    assert await async_setup_component(hass, "homeassistant", {})
+    assert await async_setup_component(hass, "input_boolean", {"input_boolean": {"tv_socket": {}}})
+    hass.states.async_set("person.trolle", "not_home")
+    assert await async_setup_component(
+        hass,
+        "automation",
+        {
+            "automation": {
+                "use_blueprint": {
+                    "path": "vestel_smartcenter/recording_power.yaml",
+                    "input": {
+                        "tv_calendar": "calendar.telefunken_mock_tv_timers",
+                        "person": "person.trolle",
+                        "power_switch": "input_boolean.tv_socket",
+                        "notify_service": "notify.handy",
+                    },
+                }
+            }
+        },
+    )
+    await hass.async_block_till_done()
+    for t in (datetime(2026, 10, 17, 16, 50, 5, tzinfo=dt_util.UTC),):
+        freezer.move_to(t)
+        async_fire_time_changed(hass, t)
+        await _settle()
+    assert hass.states.get("input_boolean.tv_socket").state == "on"
+    hass.states.async_set("person.trolle", "home")
+    t = datetime(2026, 10, 17, 17, 31, tzinfo=dt_util.UTC)
+    freezer.move_to(t)
+    async_fire_time_changed(hass, t)
+    await _settle()
+    assert hass.states.get("input_boolean.tv_socket").state == "on"
+    assert len(notes) == 1

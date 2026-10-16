@@ -1,0 +1,123 @@
+blueprint:
+  name: TV-Aufnahme – Strom bei Abwesenheit schalten
+  description: >
+    Schaltet die Steckdose des TVs vor einer geplanten Aufnahme ein, wenn niemand
+    zu Hause ist, und danach wieder aus, wenn immer noch niemand da ist.
+    Meldet beides aufs Handy. Nutzt den Kalender "TV-Timer" der Vestel-SmartCenter-Integration
+    (nur Aufnahmen ⏺, keine Erinnerungen). Die Steckdose wird nur ausgeschaltet,
+    wenn diese Automatisierung sie eingeschaltet hat und keine weitere Aufnahme ansteht.
+  domain: automation
+  source_url: https://github.com/regepower/vestel-smartcenter/blob/main/blueprints/automation/vestel_smartcenter/recording_power.yaml
+  input:
+    tv_calendar:
+      name: TV-Kalender
+      selector:
+        entity:
+          filter:
+            - domain: calendar
+              integration: vestel_smartcenter
+    person:
+      name: Person
+      description: Wenn diese Person nicht zu Hause ist, wird geschaltet.
+      selector:
+        entity:
+          filter:
+            - domain: person
+    power_switch:
+      name: Steckdose des TVs
+      selector:
+        entity:
+          filter:
+            - domain: [switch, light, input_boolean]
+    notify_service:
+      name: Benachrichtigungsdienst
+      description: z. B. notify.mobile_app_mein_handy
+      default: notify.notify
+      selector:
+        text:
+    room:
+      name: Raumname für die Meldung
+      default: Schlafzimmer
+      selector:
+        text:
+    start_offset:
+      name: Vorlauf vor Aufnahmebeginn
+      description: Format -H:MM:SS, z. B. -0:10:00 für 10 Minuten vorher
+      default: "-0:10:00"
+      selector:
+        text:
+    trail_minutes:
+      name: Minuten nach Aufnahmeende ausschalten
+      default: 10
+      selector:
+        number: {min: 1, max: 120, unit_of_measurement: min}
+
+mode: parallel
+max: 10
+
+triggers:
+  - trigger: calendar
+    event: start
+    offset: !input start_offset
+    entity_id: !input tv_calendar
+
+variables:
+  person: !input person
+  power_switch: !input power_switch
+  notify_service: !input notify_service
+  room: !input room
+  trail_minutes: !input trail_minutes
+  tv_calendar: !input tv_calendar
+  summary: "{{ trigger.calendar_event.summary }}"
+  title: "{{ summary | regex_replace('^⏺\\s*', '') }}"
+  start_ts: "{{ as_timestamp(trigger.calendar_event.start) }}"
+  end_ts: "{{ as_timestamp(trigger.calendar_event.end) }}"
+
+conditions:
+  - condition: template
+    value_template: "{{ summary.startswith('⏺') }}"
+
+actions:
+  - condition: template
+    value_template: "{{ not is_state(person, 'home') }}"
+  - variables:
+      was_on: "{{ is_state(power_switch, 'on') }}"
+  - if:
+      - condition: template
+        value_template: "{{ not was_on }}"
+    then:
+      - action: homeassistant.turn_on
+        target:
+          entity_id: "{{ power_switch }}"
+      - action: "{{ notify_service }}"
+        data:
+          title: TV-Aufnahme
+          message: >-
+            Strom im {{ room }} eingeschaltet für Aufnahme von: {{ title }}
+            ({{ start_ts | timestamp_custom('%H:%M') }}–{{ end_ts | timestamp_custom('%H:%M') }})
+    else:
+      - stop: Steckdose war bereits an – nichts zu tun
+  - delay:
+      seconds: "{{ [end_ts + trail_minutes * 60 - now().timestamp(), 0] | max | int }}"
+  - condition: template
+    value_template: "{{ not is_state(person, 'home') }}"
+  # Do not cut power if another recording is running or starts soon.
+  - action: calendar.get_events
+    target:
+      entity_id: "{{ tv_calendar }}"
+    data:
+      start_date_time: "{{ now() }}"
+      duration:
+        minutes: 20
+    response_variable: upcoming
+  - condition: template
+    value_template: >-
+      {{ upcoming[tv_calendar].events
+         | selectattr('summary', 'search', '^⏺') | list | count == 0 }}
+  - action: homeassistant.turn_off
+    target:
+      entity_id: "{{ power_switch }}"
+  - action: "{{ notify_service }}"
+    data:
+      title: TV-Aufnahme
+      message: "Strom im {{ room }} wurde wieder ausgeschaltet nach Aufnahme von: {{ title }}"
