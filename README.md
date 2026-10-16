@@ -36,6 +36,14 @@ Aktionen (`vestel_smartcenter.*`): `add_timer`, `delete_timer`, `open_url`, `sen
 
 Diagnose: *Integration → ⋮ → Diagnose herunterladen* enthält die letzten 60 Anfragen/Antworten des TVs.
 
+## Blueprint: Strom für Aufnahmen bei Abwesenheit
+Schaltet die TV-Steckdose 10 min vor einer geplanten Aufnahme ein, wenn du nicht zu Hause bist, und 10 min nach dem Ende wieder aus (nur wenn sie vorher aus war, du immer noch weg bist und keine weitere Aufnahme ansteht). Meldet beides aufs Handy.
+
+Import: *Einstellungen → Automationen → Blueprints → Blueprint importieren* →
+`https://github.com/regepower/vestel-smartcenter/blob/main/blueprints/automation/vestel_smartcenter/recording_power.yaml`
+
+Timer und Aufnahmen werden in HA gespeichert und bleiben auch bei ausgeschaltetem TV/Strom und nach Neustarts erhalten (Stand der letzten Verbindung zum TV).
+
 ## 3. FollowTV in VLC
 ```yaml
 action: vestel_smartcenter.start_followtv
