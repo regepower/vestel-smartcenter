@@ -309,6 +309,10 @@
         "body": {
           "name": "Body",
           "description": "Leer = GET, sonst POST"
+        },
+        "host": {
+          "name": "Host",
+          "description": "Optional – nur bei mehreren TVs"
         }
       }
     }

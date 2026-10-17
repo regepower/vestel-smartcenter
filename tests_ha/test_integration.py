@@ -144,11 +144,11 @@ async def test_buttons_raw_diagnostics(hass: HomeAssistant, mock_tv: MockTV) -> 
     resp = await hass.services.async_call(
         DOMAIN,
         "send_raw",
-        {"entity_id": "media_player.telefunken_mock", "path": "SmartCenter", "body": "<command>volume</command>"},
+        {"path": "SmartCenter", "body": "<command>volume</command>"},
         blocking=True,
         return_response=True,
     )
-    r = resp["media_player.telefunken_mock"]
+    r = resp
     assert r["status"] == 200 and r["ws"] == ["<volume level=20"] and r["protocol"] == "v2"
     entry = hass.config_entries.async_get_entry(entry_id)
     diag = await async_get_config_entry_diagnostics(hass, entry)

@@ -7,10 +7,12 @@ import contextlib
 import logging
 import secrets
 
+import voluptuous as vol
 from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
 from homeassistant.const import CONF_HOST, CONF_MAC, CONF_NAME, Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
@@ -27,6 +29,7 @@ from .const import (
     CONF_TOKEN,
     DEFAULT_RTSP_HTTP_PORT,
     DOMAIN,
+    SERVICE_SEND_RAW,
 )
 from .coordinator import VestelConfigEntry, VestelCoordinator
 from .pyvestel import FollowTVManager, TVInfo, VestelTV, fetch_device_info, is_smartcenter, mac_from_arp
@@ -46,6 +49,28 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     hass.http.register_view(FollowTVView())
+
+    async def send_raw(call: ServiceCall) -> ServiceResponse:
+        """Debug: raw request to the TV (no entity target needed; first/only TV by default)."""
+        entries = [e for e in hass.config_entries.async_loaded_entries(DOMAIN)]
+        if not entries:
+            raise ServiceValidationError("No Vestel SmartCenter TV configured")
+        wanted = call.data.get("host")
+        entry = next((e for e in entries if e.data[CONF_HOST] == wanted), None) if wanted else entries[0]
+        if entry is None:
+            raise ServiceValidationError(f"No TV with host {wanted}")
+        tv = entry.runtime_data.tv
+        return await tv.send_raw(call.data["path"].lstrip("/"), call.data.get("body"))
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SEND_RAW,
+        send_raw,
+        schema=vol.Schema(
+            {vol.Required("path"): cv.string, vol.Optional("body"): cv.string, vol.Optional("host"): cv.string}
+        ),
+        supports_response=SupportsResponse.ONLY,
+    )
     return True
 
 

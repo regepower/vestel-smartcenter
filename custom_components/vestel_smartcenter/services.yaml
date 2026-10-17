@@ -100,11 +100,11 @@ refresh_channels:
       integration: vestel_smartcenter
       domain: media_player
 send_raw:
-  target:
-    entity:
-      integration: vestel_smartcenter
-      domain: media_player
   fields:
+    host:
+      example: "192.168.178.131"
+      selector:
+        text:
     path:
       required: true
       example: "SmartCenter"
