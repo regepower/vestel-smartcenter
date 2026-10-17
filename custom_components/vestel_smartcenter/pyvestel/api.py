@@ -77,6 +77,8 @@ class VestelTV:
         self._ws_task: asyncio.Task[None] | None = None
         self._responses: asyncio.Queue[str] = asyncio.Queue()
         self._lock = asyncio.Lock()
+        self._connect_lock = asyncio.Lock()
+        self.unanswered = 0  # v2 queries in a row without websocket answer
         self._listeners: list[EventCallback] = []
         self._closing = False
         self.history: deque[dict[str, object]] = deque(maxlen=60)
@@ -118,9 +120,17 @@ class VestelTV:
         return lambda: self._listeners.remove(cb)
 
     async def connect(self) -> None:
-        """Open the websocket (status events; for v2 also command responses)."""
-        if self.connected:
-            return
+        """Open the websocket (status events; for v2 also command responses). Never opens two."""
+        async with self._connect_lock:
+            if self.connected:
+                return
+            await self._connect_locked()
+
+    async def _connect_locked(self) -> None:
+        if self._ws is not None:  # drop a half-dead old socket before opening a new one
+            with contextlib.suppress(Exception):
+                await self._ws.close()
+            self._ws = None
         self._closing = False
         if self.info.protocol:
             await self._open_ws(self.info.is_v2)
@@ -288,8 +298,18 @@ class VestelTV:
                 except TimeoutError:
                     break
                 if match is None or any(m in msg for m in match):
+                    self.unanswered = 0
                     return msg
                 _LOGGER.debug("skipping unrelated ws message for %s: %s", body, msg[:120])
+            self.unanswered += 1
+            if self.unanswered >= 2 and self._ws is not None:
+                # Socket looks alive but the TV stopped answering on it: force a fresh connection.
+                _LOGGER.info("%s: no websocket answers, reconnecting", self.host)
+                self._closing = True
+                with contextlib.suppress(Exception):
+                    await self._ws.close()
+                self._ws = None
+                self.unanswered = 0
             return http_body or None
 
     async def _query(self, v1_path: str, v2_cmd: str, timeout: float = DEFAULT_TIMEOUT) -> str | None:

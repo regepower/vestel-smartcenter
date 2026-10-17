@@ -236,3 +236,32 @@ async def test_v2_skips_unrelated_ws_messages(ports: dict[str, int], monkeypatch
         await tv.disconnect()
         await session.close()
         await mock.stop()
+
+
+async def test_dead_websocket_is_replaced(ports: dict[str, int], monkeypatch: pytest.MonkeyPatch) -> None:
+    mock, session, tv = await _setup(True, False, ports, monkeypatch)
+    try:
+        await tv.connect()
+        assert await tv.get_volume() == 20
+        mock.deaf = set(mock.ws_clients)  # TV keeps the socket open but never answers on it
+        assert await tv._query("vr/volume", "volume", 0.5) is None
+        assert await tv._query("vr/volume", "volume", 0.5) is None  # 2nd miss -> socket dropped
+        assert not tv.connected
+        assert await tv.get_volume() == 20  # fresh socket answers again
+        assert len(mock.ws_clients - mock.deaf) == 1
+    finally:
+        await tv.disconnect()
+        await session.close()
+        await mock.stop()
+
+
+async def test_concurrent_connect_opens_one_socket(ports: dict[str, int], monkeypatch: pytest.MonkeyPatch) -> None:
+    mock, session, tv = await _setup(True, False, ports, monkeypatch)
+    try:
+        await asyncio.gather(tv.connect(), tv.connect(), tv.connect())
+        await asyncio.sleep(0.2)
+        assert len(mock.ws_clients) == 1
+    finally:
+        await tv.disconnect()
+        await session.close()
+        await mock.stop()
