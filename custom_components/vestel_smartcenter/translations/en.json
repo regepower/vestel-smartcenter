@@ -70,6 +70,9 @@
       }
     },
     "button": {
+      "followtv_stop": {
+        "name": "Stop FollowTV"
+      },
       "key_power": {
         "name": "Power"
       },

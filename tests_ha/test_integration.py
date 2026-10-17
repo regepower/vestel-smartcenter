@@ -71,6 +71,7 @@ async def test_full(hass: HomeAssistant, mock_tv: MockTV, hass_client_no_auth) -
     assert hass.states.get("sensor.telefunken_mock_channel").state == "ZDF HD"
     assert hass.states.get("sensor.telefunken_mock_reminders").state == "1"
     assert hass.states.get("sensor.telefunken_mock_tv_state").state == "epg"
+    assert hass.states.get("button.telefunken_mock_stop_followtv") is not None, hass.states.async_entity_ids("button")
 
     await hass.services.async_call(
         "media_player", "select_source", {"entity_id": mp.entity_id, "source": "Das Erste HD"}, blocking=True

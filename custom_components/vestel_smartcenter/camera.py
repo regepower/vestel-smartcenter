@@ -71,7 +71,7 @@ class VestelFollowTVCamera(VestelEntity, Camera):
         if ls and ls.url and self.coordinator.followtv.running:
             try:
                 async with asyncio.timeout(20):
-                    img = await async_get_image(self.hass, ls.url, width=width, height=height)
+                    img = await async_get_image(self.hass, ls.raw_url or ls.url, width=width, height=height)
                 if img:
                     return img
             except TimeoutError:

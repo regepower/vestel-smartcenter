@@ -99,7 +99,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: VestelConfigEntry) -> bo
     port = entry.options.get(CONF_RTSP_HTTP_PORT, DEFAULT_RTSP_HTTP_PORT)
     followtv = FollowTVManager(tv, http_port=port or None)
     coordinator = VestelCoordinator(hass, entry, tv, followtv)
-    coordinator.local_stream = LocalStreamServer(followtv)
+    coordinator.local_stream = LocalStreamServer(followtv, _ffmpeg_binary(hass))
     await coordinator.local_stream.start()
     await coordinator.async_load_cache()
     coordinator.options_snapshot = dict(entry.options)
@@ -110,6 +110,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: VestelConfigEntry) -> bo
     # Never block HA startup on the TV (it may be off or half-asleep): refresh in the background.
     entry.async_create_background_task(hass, _refresh_info(hass, entry, tv), f"{DOMAIN}-refresh-{entry.entry_id}")
     return True
+
+
+def _ffmpeg_binary(hass: HomeAssistant) -> str | None:
+    """ffmpeg is used to transcode DVB audio (MP2/AC3) to AAC, the only audio HA's stream keeps."""
+    try:
+        from homeassistant.components.ffmpeg import get_ffmpeg_manager  # noqa: PLC0415
+
+        return get_ffmpeg_manager(hass).binary
+    except Exception:  # noqa: BLE001 - ffmpeg integration not loaded
+        return None
 
 
 async def _refresh_info(hass: HomeAssistant, entry: VestelConfigEntry, tv: VestelTV) -> None:
@@ -203,12 +213,17 @@ async def stream_to_response(request: web.Request, mgr: FollowTVManager) -> web.
 
 
 class LocalStreamServer:
-    """Loopback-only HTTP server for HA's stream worker (avoids HA auth/SSL/port issues)."""
+    """Loopback-only HTTP server for HA's stream worker (avoids HA auth/SSL/port issues).
 
-    def __init__(self, mgr: FollowTVManager) -> None:
+    /followtv.ts is the plain decrypted TS, /followtv_aac.ts the same with audio as AAC
+    (HA's stream drops MP2/AC3, which DVB channels use -> no sound otherwise)."""
+
+    def __init__(self, mgr: FollowTVManager, ffmpeg: str | None = None) -> None:
         self._mgr = mgr
+        self._ffmpeg = ffmpeg
         self._runner: web.AppRunner | None = None
         self.url: str | None = None
+        self.raw_url: str | None = None
 
     async def start(self) -> None:
         app = web.Application()
@@ -216,18 +231,82 @@ class LocalStreamServer:
         async def handle(request: web.Request) -> web.StreamResponse:
             return await stream_to_response(request, self._mgr)
 
+        async def handle_aac(request: web.Request) -> web.StreamResponse:
+            return await stream_aac_to_response(request, self._mgr, self._ffmpeg or "ffmpeg")
+
         app.router.add_get("/followtv.ts", handle)
+        app.router.add_get("/followtv_aac.ts", handle_aac)
         self._runner = web.AppRunner(app, access_log=None)
         await self._runner.setup()
         site = web.TCPSite(self._runner, "127.0.0.1", 0)
         await site.start()
         port = site._server.sockets[0].getsockname()[1]  # type: ignore[union-attr]
-        self.url = f"http://127.0.0.1:{port}/followtv.ts"
+        self.raw_url = f"http://127.0.0.1:{port}/followtv.ts"
+        self.url = f"http://127.0.0.1:{port}/followtv_aac.ts" if self._ffmpeg else self.raw_url
 
     async def stop(self) -> None:
         if self._runner is not None:
             await self._runner.cleanup()
             self._runner = None
+
+
+FFMPEG_AAC_ARGS = (
+    "-hide_banner", "-loglevel", "error", "-fflags", "+genpts+discardcorrupt",
+    "-i", "pipe:0", "-map", "0:v:0", "-map", "0:a:0?",
+    "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-ac", "2",
+    "-f", "mpegts", "pipe:1",
+)  # fmt: skip
+
+
+async def stream_aac_to_response(request: web.Request, mgr: FollowTVManager, ffmpeg: str) -> web.StreamResponse:
+    """Pipe the decrypted TS through ffmpeg: video copied, audio -> AAC."""
+    q = mgr.subscribe()
+    first = await _first_chunk(q)
+    if first is None:
+        mgr.unsubscribe(q)
+        return web.Response(status=503, text=f"FollowTV not available: {mgr.last_error}")
+    proc = await asyncio.create_subprocess_exec(
+        ffmpeg, *FFMPEG_AAC_ARGS,
+        stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )  # fmt: skip
+    assert proc.stdin is not None and proc.stdout is not None
+
+    async def feed() -> None:
+        stdin = proc.stdin
+        assert stdin is not None
+        try:
+            chunk: bytes | None = first
+            while chunk is not None:
+                stdin.write(chunk)
+                await stdin.drain()
+                chunk = await q.get()
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+        finally:
+            with contextlib.suppress(Exception):
+                stdin.close()
+
+    feeder = asyncio.create_task(feed())
+    resp = web.StreamResponse(headers={"Content-Type": "video/mp2t", "Cache-Control": "no-cache"})
+    try:
+        await resp.prepare(request)
+        while data := await proc.stdout.read(65536):
+            await resp.write(data)
+    except ConnectionResetError:
+        pass
+    finally:
+        feeder.cancel()
+        mgr.unsubscribe(q)
+        if proc.returncode is None:
+            with contextlib.suppress(ProcessLookupError):
+                proc.kill()
+        err = b""
+        with contextlib.suppress(Exception):
+            async with asyncio.timeout(2):
+                err = (await proc.communicate())[1]
+        if err:
+            _LOGGER.debug("ffmpeg (FollowTV audio): %s", err.decode(errors="replace")[-500:])
+    return resp
 
 
 async def _first_chunk(q: asyncio.Queue[bytes | None]) -> bytes | None:

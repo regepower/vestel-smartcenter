@@ -50,7 +50,8 @@ BUTTONS: tuple[tuple[str, str, bool], ...] = (
 async def async_setup_entry(
     hass: HomeAssistant, entry: VestelConfigEntry, async_add_entities: AddConfigEntryEntitiesCallback
 ) -> None:
-    async_add_entities(VestelKeyButton(entry.runtime_data, *b) for b in BUTTONS)
+    coord = entry.runtime_data
+    async_add_entities([*(VestelKeyButton(coord, *b) for b in BUTTONS), VestelFollowTVStopButton(coord)])
 
 
 class VestelKeyButton(VestelEntity, ButtonEntity):
@@ -70,3 +71,24 @@ class VestelKeyButton(VestelEntity, ButtonEntity):
             await self.tv.send_key(self._key)
         except VestelError as err:
             raise HomeAssistantError(f"{self._key}: {err}") from err
+
+
+class VestelFollowTVStopButton(VestelEntity, ButtonEntity):
+    """Ends FollowTV on the TV and in HA (it also stops by itself shortly after the last viewer leaves)."""
+
+    _attr_translation_key = "followtv_stop"
+    _attr_icon = "mdi:television-off"
+
+    def __init__(self, coordinator: VestelCoordinator) -> None:
+        super().__init__(coordinator, "followtv_stop")
+
+    @property
+    def available(self) -> bool:
+        return True
+
+    async def async_press(self) -> None:
+        await self.coordinator.followtv.stop()
+        try:
+            await self.tv.stop_followtv()
+        except VestelError as err:
+            raise HomeAssistantError(f"FollowTV stop: {err}") from err
