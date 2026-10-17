@@ -109,14 +109,22 @@ async def test_full(hass: HomeAssistant, mock_tv: MockTV, hass_client_no_auth) -
     body = next(p for p in mock_tv.posts if "<addtimer>" in p)
     assert "event_name='Krimi'" in body and "rsn='2'" in body
 
+    # FollowTV is off after setup: clients must not reach the TV
+    client = await hass_client_no_auth()
+    assert hass.states.get("switch.telefunken_mock_followtv").state == "off"
+    blocked = await client.get(f"/api/vestel_smartcenter/followtv/{entry_id}.ts?token={entry.data[CONF_TOKEN]}")
+    assert blocked.status == 503
+    assert entry.runtime_data.followtv._starts == []
+
     resp = await hass.services.async_call(
         DOMAIN, "start_followtv", {"entity_id": mp.entity_id}, blocking=True, return_response=True
     )
     r = resp[mp.entity_id]
-    assert r["encrypted"] is True and r["direct_url"] is None
+    assert r["direct_url"] is None
     assert f"/api/vestel_smartcenter/followtv/{entry_id}.ts?token=" in r["proxy_url"]
+    assert entry.runtime_data.followtv._starts == []  # service itself does not start the TV
+    assert hass.states.get("switch.telefunken_mock_followtv").state == "on"
 
-    client = await hass_client_no_auth()
     bad = await client.get(f"/api/vestel_smartcenter/followtv/{entry_id}.ts?token=nope")
     assert bad.status == 401
     ok = await client.get(f"/api/vestel_smartcenter/followtv/{entry_id}.ts?token={entry.data[CONF_TOKEN]}")
@@ -124,6 +132,11 @@ async def test_full(hass: HomeAssistant, mock_tv: MockTV, hass_client_no_auth) -
     data = await ok.content.read(188 * 50)
     assert data[0] == 0x47 and data[188] == 0x47
     ok.close()
+    assert len(entry.runtime_data.followtv._starts) == 1  # exactly one start on the TV
+    await hass.services.async_call(
+        "switch", "turn_off", {"entity_id": "switch.telefunken_mock_followtv"}, blocking=True
+    )
+    assert not entry.runtime_data.followtv.running and not entry.runtime_data.followtv.enabled
 
     assert await hass.config_entries.async_unload(entry_id)
     await hass.async_block_till_done()
@@ -168,6 +181,8 @@ async def test_camera_and_calendar(hass: HomeAssistant, mock_tv: MockTV, socket_
     entry_id = await _setup(hass, mock_tv)
     cam = hass.states.get("camera.telefunken_mock_followtv")
     assert cam is not None and cam.state != "unavailable"
+    assert await async_get_stream_source(hass, cam.entity_id) is None  # switch off -> TV untouched
+    await hass.services.async_call("switch", "turn_on", {"entity_id": "switch.telefunken_mock_followtv"}, blocking=True)
     url = await async_get_stream_source(hass, cam.entity_id)
     assert url is not None and url.startswith("http://127.0.0.1:")
     async with aiohttp.ClientSession() as s, s.get(url) as r:
@@ -351,5 +366,5 @@ async def test_snapshot_does_not_start_followtv(hass: HomeAssistant, mock_tv: Mo
     assert img.content.startswith(b"\xff\xd8")  # JPEG placeholder
     entry = hass.config_entries.async_get_entry(entry_id)
     assert entry.runtime_data.followtv.running is False
-    assert not any("startfollowtv" in p for p in mock_tv.posts)
+    assert entry.runtime_data.followtv._starts == []
     assert await hass.config_entries.async_unload(entry_id)

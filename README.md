@@ -27,7 +27,8 @@ Bei Problemen `-v` anhängen und Log schicken.
 Entitäten:
 - `media_player.*` – Ein (WOL)/Aus, Lautstärke, Mute (Toggle), Senderwahl über `source`, P+/P−, Play/Pause/Stop, `play_media` (Sendername, Nummer oder URL)
 - `remote.*` – beliebige Tasten: `POWER HOME MENU OK UP DOWN LEFT RIGHT BACK EXIT VOL_UP VOL_DOWN MUTE PROG_UP PROG_DOWN SOURCE EPG INFO TEXT RED GREEN YELLOW BLUE PLAY PAUSE STOP RECORD 0-9 …`
-- `camera.*_followtv` – FollowTV-Livebild im Dashboard (Karte „Bild-Entität“ / „Picture Entity“, Kameraansicht *Live*). Startet FollowTV beim Öffnen, stoppt ca. 30–40 s nach dem Schließen. Ton wird per ffmpeg nach AAC gewandelt (HA-Stream verwirft MP2/AC3 der Sender); im Player Lautsprecher-Symbol antippen. Attribut `vlc_url` = fertiger Link für VLC. Benötigt `stream` + `ffmpeg` (in `default_config` enthalten).
+- `switch.*_followtv` – **Freigabe für FollowTV**, nach jedem HA-Start *aus*. Nur wenn an, dürfen Kamera/VLC FollowTV am TV starten. Schutz: max. 1 Start pro 30 s und 3 Starts pro 10 min, danach schaltet er sich selbst ab (zu viele Starts lassen manche TVs hängen/neu starten).
+- `camera.*_followtv` – FollowTV-Livebild im Dashboard (Karte „Bild-Entität“ / „Picture Entity“, Kameraansicht *Live*). Bei eingeschaltetem Schalter: startet FollowTV beim Öffnen, stoppt ca. 30–40 s nach dem Schließen. Ton wird per ffmpeg nach AAC gewandelt (HA-Stream verwirft MP2/AC3 der Sender); im Player Lautsprecher-Symbol antippen. Attribut `vlc_url` = fertiger Link für VLC. Benötigt `stream` + `ffmpeg` (in `default_config` enthalten).
 - `calendar.*_tv_timer` – Erinnerungen und geplante Aufnahmen als Kalender (inkl. täglich/wöchentlich)
 - `button.*` – Tasten der Fernbedienung (weitere in der Entitätsliste aktivierbar) und **„FollowTV beenden“**
 - `sensor.*_sender`, `*_erinnerungen`, `*_aufnahme_timer` (Liste in Attribut `items`), `*_tv_status`, `*_senderliste` (deaktiviert)
@@ -57,7 +58,7 @@ target:
   entity_id: media_player.telefunken
 response_variable: ft
 ```
-Antwort `proxy_url` (oder Attribut `vlc_url` der FollowTV-Kamera) → in VLC öffnen (*Medien → Netzwerkstream*):
+`start_followtv` schaltet die Freigabe ein (startet selbst nichts am TV). Antwort `proxy_url` (oder Attribut `vlc_url` der FollowTV-Kamera) → in VLC öffnen (*Medien → Netzwerkstream*):
 `http://<HA>:8123/api/vestel_smartcenter/followtv/<entry_id>.ts?token=…`
 - HA holt den Stream vom TV (RTSP über HTTP, Port 8554), entschlüsselt ggf. AES und liefert normales MPEG-TS. Mehrere Clients gleichzeitig möglich; 5 s nach dem letzten Client wird FollowTV beendet (sofort: Button „FollowTV beenden“).
 - Die `rtsp://…:8554/followTVlive|…|…|…|…|`-Adresse des TVs ist AES-verschlüsselt (die Hex-Blöcke sind der Schlüssel) → in VLC nicht abspielbar, immer `proxy_url` nehmen. Nur unverschlüsselt (`direct_url` gesetzt) geht direkt: `vlc --rtsp-http --rtsp-http-port=8554 "<direct_url>"`.

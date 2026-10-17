@@ -87,7 +87,9 @@ class VestelFollowTVStopButton(VestelEntity, ButtonEntity):
         return True
 
     async def async_press(self) -> None:
+        self.coordinator.followtv.enabled = False
         await self.coordinator.followtv.stop()
+        self.coordinator.async_update_listeners()
         try:
             await self.tv.stop_followtv()
         except VestelError as err:

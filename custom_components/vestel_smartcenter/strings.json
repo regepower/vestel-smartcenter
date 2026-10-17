@@ -188,6 +188,11 @@
         "name": "Key 9"
       }
     },
+    "switch": {
+      "followtv": {
+        "name": "FollowTV"
+      }
+    },
     "camera": {
       "followtv": {
         "name": "FollowTV"

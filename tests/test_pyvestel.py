@@ -270,3 +270,29 @@ async def test_concurrent_connect_opens_one_socket(ports: dict[str, int], monkey
         await tv.disconnect()
         await session.close()
         await mock.stop()
+
+
+async def test_followtv_rate_limit() -> None:
+    from pyvestel import session as sess
+
+    class FakeTV:
+        info = type("I", (), {"model": "mb230"})()
+        calls = 0
+
+        async def start_followtv(self):
+            FakeTV.calls += 1
+
+        async def stop_followtv(self) -> None:
+            return None
+
+    mgr = FollowTVManager(FakeTV(), enabled=False)  # type: ignore[arg-type]
+    q = mgr.subscribe()
+    assert q.get_nowait() is None and FakeTV.calls == 0  # disabled -> TV untouched
+    mgr.unsubscribe(q)
+    mgr.enabled = True
+    await mgr.start_on_tv()
+    assert await mgr.start_on_tv() is None and "too soon" in (mgr.last_error or "")
+    assert FakeTV.calls == 1
+    mgr._starts = [mgr._starts[0] - 500, mgr._starts[0] - 400, mgr._starts[0] - 300]
+    assert await mgr.start_on_tv() is None and not mgr.enabled and FakeTV.calls == 1
+    assert sess.MAX_STARTS == 3

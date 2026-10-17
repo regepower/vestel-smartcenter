@@ -53,6 +53,7 @@ class VestelFollowTVCamera(VestelEntity, Camera):
     def extra_state_attributes(self) -> dict[str, object]:
         mgr = self.coordinator.followtv
         return {
+            "enabled": mgr.enabled,
             "encrypted": mgr.encrypted,
             "last_error": mgr.last_error or mgr.stats.error,
             "tv_response": mgr.raw_response,
@@ -74,7 +75,9 @@ class VestelFollowTVCamera(VestelEntity, Camera):
     async def stream_source(self) -> str | None:
         """Pulled by HA's stream worker; the first client starts FollowTV on the TV."""
         ls = self.coordinator.local_stream
-        return ls.url if ls else None
+        if ls is None or not self.coordinator.followtv.enabled:
+            return None  # FollowTV switch off: never touch the TV
+        return ls.url
 
     async def async_camera_image(self, width: int | None = None, height: int | None = None) -> bytes | None:
         """Snapshot. Only grabs a real frame while FollowTV is already running: HA requests

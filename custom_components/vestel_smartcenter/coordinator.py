@@ -122,6 +122,9 @@ class VestelCoordinator(DataUpdateCoordinator[TVData]):
             await self.tv.connect()
         state = await self.tv.get_state()
         now = dt_util.utcnow()
+        if state is not None and self.followtv.running:
+            data.state = state  # keep the TV's load low while it streams
+            return True
         if state is not None:
             data.state = state
             data.volume = await self.tv.get_volume()

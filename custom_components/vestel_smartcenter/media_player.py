@@ -36,7 +36,7 @@ from .const import (
 )
 from .coordinator import VestelConfigEntry
 from .entity import VestelEntity
-from .pyvestel import VestelError, parse_stream_url
+from .pyvestel import VestelError
 
 PARALLEL_UPDATES = 1
 
@@ -153,6 +153,7 @@ class VestelMediaPlayer(VestelEntity, MediaPlayerEntity):
             "tv_state": d.state.value if d and d.state else None,
             "channel_rsn": d.channel.rsn if d and d.channel else None,
             "followtv_active": mgr.running,
+            "followtv_enabled": mgr.enabled,
             "followtv_error": mgr.last_error,
         }
 
@@ -275,21 +276,20 @@ class VestelMediaPlayer(VestelEntity, MediaPlayerEntity):
         except NoURLAvailableError:
             base = ""
         proxy = f"{base}{STREAM_PATH.format(entry_id=entry.entry_id)}?token={entry.data[CONF_TOKEN]}"
-        if mgr.running:
-            return {"proxy_url": proxy, "direct_url": None, "encrypted": mgr.encrypted, "running": True}
-        raw = await self._call(mgr.start_on_tv())
-        if not raw:
-            raise HomeAssistantError(f"FollowTV refused by TV: {mgr.last_error}")
-        target = parse_stream_url(raw)
-        direct = None if target.key else target.url
+        # No extra start on the TV here: the stream is started once, by the first client of proxy_url.
+        mgr.enabled = True
+        self.coordinator.async_update_listeners()
+        direct = mgr.raw_url if mgr.raw_url and not mgr.encrypted else None
         return {
             "proxy_url": proxy,
             "direct_url": direct,
-            "encrypted": target.key is not None,
-            "vlc_command": f'vlc --rtsp-http --rtsp-http-port=8554 "{direct}"' if direct else f'vlc "{proxy}"',
-            "running": False,
+            "encrypted": mgr.encrypted,
+            "vlc_command": f'vlc "{proxy}"',
+            "running": mgr.running,
         }
 
     async def async_stop_followtv(self) -> None:
+        self.coordinator.followtv.enabled = False
         await self.coordinator.followtv.stop()
+        self.coordinator.async_update_listeners()
         await self._call(self.tv.stop_followtv())

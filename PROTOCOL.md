@@ -90,7 +90,7 @@ Wiedergabe in der App (libVLC):
 * ✅ Am MB230 verifiziert: Start-Antwort `timeshift_url:…|k1|k2|k3|k4|` (abschließendes `|`), RTSP über HTTP-Tunnel auf 8554, AES-Entschlüsselung liefert gültiges TS (Bild in HA).
 * Audio der Sender ist DVB-typisch MP2/AC3 → HA-`stream` verwirft es; Integration transkodiert für die Kamera per ffmpeg nach AAC (Video unverändert).
 * ⚠️ Noch offen: Stop-Befehl in v2 (`<command>stopfollowtv</command>`) – Wirkung am TV nicht bestätigt.
-* ⚠️ Stabilität: Der SmartCenter-Dienst des MB230 hängt sich bei parallelen Websockets/vielen FollowTV-Starts auf (POST → 201, aber keine WS-Antwort mehr); nur Stromtrennung hilft.
+* ⚠️ Stabilität: Der SmartCenter-Dienst des MB230 hängt sich bei parallelen Websockets/vielen FollowTV-Starts auf (POST → 201, aber keine WS-Antwort mehr); nur Stromtrennung hilft. Gemeldet außerdem: TV startet jede Minute neu, wenn FollowTV wiederholt gestartet wird (z. B. Stream-Wiederholversuche einer offenen Kamera-Karte) → Integration startet FollowTV nur nach Freigabe und mit Start-Limit.
 
 ## 6. EPG
 Die App holt das EPG **nicht vom TV**, sondern von Gracenote (`c13566208.ipg.web.cddbp.net/webapi/xml/1.0/`) – Dienst vermutlich abgeschaltet. Vom TV gibt es nur den aktuellen Sender (`program`), Timer- und Aufnahmelisten. Für ein EPG in Home Assistant eine externe Quelle (XMLTV o. ä.) nutzen.

@@ -43,6 +43,7 @@ PLATFORMS: list[Platform] = [
     Platform.MEDIA_PLAYER,
     Platform.REMOTE,
     Platform.SENSOR,
+    Platform.SWITCH,
 ]
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
@@ -97,7 +98,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: VestelConfigEntry) -> bo
     if entry.options.get(CONF_TIMER_TZ, "utc") == "local":
         tv.tz = dt_util.get_default_time_zone()
     port = entry.options.get(CONF_RTSP_HTTP_PORT, DEFAULT_RTSP_HTTP_PORT)
-    followtv = FollowTVManager(tv, http_port=port or None)
+    followtv = FollowTVManager(tv, http_port=port or None, enabled=False)  # only via switch/service
     coordinator = VestelCoordinator(hass, entry, tv, followtv)
     coordinator.local_stream = LocalStreamServer(followtv, _ffmpeg_binary(hass))
     await coordinator.local_stream.start()

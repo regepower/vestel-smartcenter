@@ -17,7 +17,7 @@ CONF_RTSP_HTTP_PORT: Final = "rtsp_http_port"
 CONF_TIMER_TZ: Final = "timer_timezone"  # "utc" | "local"
 
 DEFAULT_RTSP_HTTP_PORT: Final = 8554
-SCAN_INTERVAL: Final = timedelta(seconds=15)
+SCAN_INTERVAL: Final = timedelta(seconds=30)
 CHANNELS_INTERVAL: Final = timedelta(minutes=30)
 TIMERS_INTERVAL: Final = timedelta(minutes=5)
 
