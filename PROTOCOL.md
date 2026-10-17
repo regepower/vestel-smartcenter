@@ -74,7 +74,7 @@ v2 in `<event>…</event>` verpackt, v1 roh:
 
 ## 5. FollowTV
 
-Antwort auf `startfollowtv`: `…_url:<URL>` (alles nach dem letzten `_url:`) oder Fehler `followtv_started_status:N`:
+Antwort auf `startfollowtv`: `…_url:<URL>` (alles nach dem letzten `_url:`; MB230 real: `timeshift_url:rtsp://<tv>:8554/followTVlive|k1|k2|k3|k4|` mit abschließendem `|`) ✅ oder Fehler `followtv_started_status:N`:
 3 Start fehlgeschlagen · 4 nicht erlaubt · 5 Aufnahme verschlüsselt · 6 Sender verschlüsselt · 7 Browser läuft · 8 Mediaplayer läuft · 9 Quelle nicht unterstützt · 10 FollowTV deaktiviert · 12 RTSP-HD-Inhalt
 
 Wiedergabe in der App (libVLC):

@@ -16,6 +16,7 @@ import asyncio
 import base64
 import contextlib
 import logging
+import re
 import secrets
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -46,8 +47,10 @@ class StreamTarget:
 
 def parse_stream_url(raw: str) -> StreamTarget:
     """Split '<url>|k1|k2|k3|k4' into url + AES key (as FollowmeTVFragment does)."""
-    parts = raw.strip().split("|")
-    if len(parts) == 5:
+    parts = [p.strip() for p in raw.strip().split("|")]
+    while len(parts) > 1 and not parts[-1]:  # real TVs append a trailing '|'
+        parts.pop()
+    if len(parts) == 5 and all(re.fullmatch(r"[0-9a-fA-F]{8}", w) for w in parts[1:]):
         key_hex = _ror2(parts[4]) + _ror2(parts[2]) + _ror2(parts[3]) + _ror2(parts[1])
         return StreamTarget(parts[0], bytes.fromhex(key_hex))
     return StreamTarget(parts[0], None)

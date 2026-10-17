@@ -69,9 +69,9 @@ class MockTV:
     def answer(self, cmd: str) -> str | None:
         if self.standby and cmd not in ("timerlist", "recordlist"):
             return None
-        follow = f"rtsp://127.0.0.1:{self.rtsp_port}/followtv"
+        follow = f"rtsp://127.0.0.1:{self.rtsp_port}/followTVlive"
         if self.encrypted:
-            follow += "|" + "|".join(KEY_WORDS)
+            follow += "|" + "|".join(KEY_WORDS) + "|"  # MB230: trailing pipe
         return {
             "activechannellist": CHANNELS,
             "program": "<service rsn='2' name='ZDF HD' handle='12' onid='1' tsid='1011' sid='11110' type='1'/>",
@@ -80,7 +80,7 @@ class MockTV:
             "timerlist": TIMERS,
             "recordlist": RECORDS,
             "specialportalapps": "Netflix:1|PVR:1|Skype:0",
-            "startfollowtv": f"followtv_started_status:0_url:{follow}",
+            "startfollowtv": f"timeshift_url:{follow}",
         }.get(cmd)
 
     def handle_body(self, body: str) -> str | None:
@@ -182,7 +182,7 @@ class MockTV:
                 sdp = "v=0\r\ns=FollowTV\r\nm=video 0 RTP/AVP 33\r\na=control:track1\r\n"
                 write(
                     (
-                        hdr + f"Content-Base: rtsp://127.0.0.1:{self.rtsp_port}/followtv/\r\n"
+                        hdr + f"Content-Base: rtsp://127.0.0.1:{self.rtsp_port}/followTVlive/\r\n"
                         f"Content-Type: application/sdp\r\nContent-Length: {len(sdp)}\r\n\r\n{sdp}"
                     ).encode()
                 )

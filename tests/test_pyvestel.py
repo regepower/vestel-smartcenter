@@ -58,6 +58,9 @@ def test_key_derivation_matches_app() -> None:
     # ror2(0x99aabbcc) computed by hand: 0x99aabbcc >> 2 = 0x266aaef3, low bits 00 -> 0x266aaef3
     assert t.key[:4].hex() == "266aaef3"
     assert parse_stream_url("http://a/b").key is None
+    real = "rtsp://192.168.178.131:8554/followTVlive|925215b3|0324eaa2|cadc6694|c3f76451|"
+    t2 = parse_stream_url(real)
+    assert t2.url == "rtsp://192.168.178.131:8554/followTVlive" and t2.key is not None and len(t2.key) == 16
 
 
 def test_parsers() -> None:
@@ -77,6 +80,8 @@ def test_parsers() -> None:
     assert r is not None and r.url is None and r.error == FollowTVError.CHANNEL_ENCRYPTED
     r = parse_followtv("followtv_started_status:0_url:rtsp://x/y|a|b|c|d")
     assert r is not None and r.url == "rtsp://x/y|a|b|c|d"
+    r = parse_followtv("timeshift_url:rtsp://h:8554/followTVlive|925215b3|0324eaa2|cadc6694|c3f76451|")
+    assert r is not None and r.url is not None and r.url.startswith("rtsp://h:8554/followTVlive")
 
 
 def test_build_timed_xml() -> None:
@@ -197,7 +202,7 @@ async def test_manager_fanout(ports: dict[str, int], monkeypatch: pytest.MonkeyP
         assert c1 and c2 and c1[0] == 0x47
         assert mgr.encrypted is True
         assert mgr.stats.bytes_out > 0 and mgr.stats.transport == "http" and mgr.stats.first_decrypted_hex
-        assert mgr.raw_response and mgr.raw_response.startswith("followtv_started_status:0")
+        assert mgr.raw_response and mgr.raw_response.startswith("timeshift_url:")
         mgr.unsubscribe(q1)
         mgr.unsubscribe(q2)
         await asyncio.sleep(0.4)

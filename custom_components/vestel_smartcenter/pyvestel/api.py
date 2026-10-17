@@ -47,7 +47,7 @@ V2_MATCH: dict[str, tuple[str, ...]] = {
     "timerlist": ("timer",),
     "recordlist": ("record",),
     "specialportalapps": (":",),
-    "startfollowtv": ("followtv",),
+    "startfollowtv": ("_url:", "followtv_started_status"),
 }
 
 EventCallback = Callable[[str], None]
