@@ -87,7 +87,10 @@ Wiedergabe in der App (libVLC):
 * App übergibt `--ts-csa-ck=<32 Hex>/decrypt` (MB100) bzw. ohne `/decrypt` (MB90). Der gepatchte TS-Demuxer liest 16 Bytes per `%2hhx`, und bei `/decrypt` wird AES-**Entschlüsselung**, sonst AES-**Verschlüsselung** angewendet.
 * Paketgröße im gepatchten Demuxer fest **192 Byte**; jedes Paket wird in 12 Blöcken AES-ECB verarbeitet, das Ergebnis um 4 Byte nach vorne geschoben → 188-Byte-TS-Paket mit Sync 0x47.
 * Stock-VLC kann das nicht (dessen `ts-csa-ck` ist DVB-CSA mit 8-Byte-Key) → Proxy nötig (in dieser Integration enthalten).
-* ⚠️ Am echten TV noch nicht verifiziert: RTP-Payload-Grenzen = Paketgrenzen (Proxy resynct sonst automatisch), genaues HTTP-Tunnel-Verhalten des TV-Servers, Stop-Befehl in v2.
+* ✅ Am MB230 verifiziert: Start-Antwort `timeshift_url:…|k1|k2|k3|k4|` (abschließendes `|`), RTSP über HTTP-Tunnel auf 8554, AES-Entschlüsselung liefert gültiges TS (Bild in HA).
+* Audio der Sender ist DVB-typisch MP2/AC3 → HA-`stream` verwirft es; Integration transkodiert für die Kamera per ffmpeg nach AAC (Video unverändert).
+* ⚠️ Noch offen: Stop-Befehl in v2 (`<command>stopfollowtv</command>`) – Wirkung am TV nicht bestätigt.
+* ⚠️ Stabilität: Der SmartCenter-Dienst des MB230 hängt sich bei parallelen Websockets/vielen FollowTV-Starts auf (POST → 201, aber keine WS-Antwort mehr); nur Stromtrennung hilft.
 
 ## 6. EPG
 Die App holt das EPG **nicht vom TV**, sondern von Gracenote (`c13566208.ipg.web.cddbp.net/webapi/xml/1.0/`) – Dienst vermutlich abgeschaltet. Vom TV gibt es nur den aktuellen Sender (`program`), Timer- und Aufnahmelisten. Für ein EPG in Home Assistant eine externe Quelle (XMLTV o. ä.) nutzen.
