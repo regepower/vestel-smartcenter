@@ -71,6 +71,9 @@ async def test_full(hass: HomeAssistant, mock_tv: MockTV, hass_client_no_auth) -
     assert hass.states.get("sensor.telefunken_mock_channel").state == "ZDF HD"
     assert hass.states.get("sensor.telefunken_mock_reminders").state == "1"
     assert hass.states.get("sensor.telefunken_mock_tv_state").state == "epg"
+    assert "/api/vestel_smartcenter/followtv/" in (
+        hass.states.get("camera.telefunken_mock_followtv").attributes.get("vlc_url") or ""
+    )
     assert hass.states.get("button.telefunken_mock_stop_followtv") is not None, hass.states.async_entity_ids("button")
 
     await hass.services.async_call(

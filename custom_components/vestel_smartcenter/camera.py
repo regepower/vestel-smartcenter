@@ -10,7 +10,9 @@ from homeassistant.components.camera import Camera, CameraEntityFeature
 from homeassistant.components.ffmpeg import async_get_image
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.network import NoURLAvailableError, get_url
 
+from .const import CONF_TOKEN, STREAM_PATH
 from .coordinator import VestelConfigEntry, VestelCoordinator
 from .entity import VestelEntity
 
@@ -57,7 +59,17 @@ class VestelFollowTVCamera(VestelEntity, Camera):
             "transport": mgr.stats.transport,
             "bytes_in": mgr.stats.bytes_in,
             "bytes_out": mgr.stats.bytes_out,
+            "vlc_url": self._vlc_url(),
         }
+
+    def _vlc_url(self) -> str | None:
+        """Decrypted stream via HA (the TV's own rtsp:// URL is AES-encrypted, VLC can't play it)."""
+        entry = self.coordinator.config_entry
+        try:
+            base = get_url(self.hass, prefer_external=False, allow_cloud=False)
+        except NoURLAvailableError:
+            return None
+        return f"{base}{STREAM_PATH.format(entry_id=entry.entry_id)}?token={entry.data[CONF_TOKEN]}"
 
     async def stream_source(self) -> str | None:
         """Pulled by HA's stream worker; the first client starts FollowTV on the TV."""
