@@ -59,7 +59,8 @@ class MockTV:
         self._servers: list[asyncio.base_events.Server] = []
         self._tunnels: dict[str, asyncio.StreamWriter] = {}
         self.rtsp_methods: list[str] = []
-        self.standby = False  # UI asleep: only timer lists answer
+        self.standby = False
+        self.noise = False  # send an unrelated ws message before each answer  # UI asleep: only timer lists answer
 
     # ---------------------------------------------------------------- answers
     def answer(self, cmd: str) -> str | None:
@@ -126,6 +127,8 @@ class MockTV:
         ans = self.answer(body[9:-10]) if body.startswith("<command>") else self.handle_body(body)
         if ans is not None:
             for ws in list(self.ws_clients):
+                if self.noise:
+                    await ws.send_str("<open_browser_status value='0'/>")  # unrelated, unwrapped
                 await ws.send_str(ans)
         return web.Response(text="")
 

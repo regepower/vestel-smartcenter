@@ -337,3 +337,15 @@ async def test_standby_still_reads_timers(hass: HomeAssistant, mock_tv: MockTV) 
     assert hass.states.get("sensor.telefunken_mock_recordings").state == "1"
     assert hass.states.get("camera.telefunken_mock_followtv").state == "unavailable"
     assert await hass.config_entries.async_unload(entry_id)
+
+
+async def test_snapshot_does_not_start_followtv(hass: HomeAssistant, mock_tv: MockTV) -> None:
+    from homeassistant.components.camera import async_get_image
+
+    entry_id = await _setup(hass, mock_tv)
+    img = await async_get_image(hass, "camera.telefunken_mock_followtv")
+    assert img.content.startswith(b"\xff\xd8")  # JPEG placeholder
+    entry = hass.config_entries.async_get_entry(entry_id)
+    assert entry.runtime_data.followtv.running is False
+    assert not any("startfollowtv" in p for p in mock_tv.posts)
+    assert await hass.config_entries.async_unload(entry_id)

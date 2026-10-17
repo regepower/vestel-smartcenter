@@ -222,3 +222,17 @@ async def test_pick_smartcenter_ignores_vewd(ports: dict[str, int], monkeypatch:
     finally:
         await session.close()
         await mock.stop()
+
+
+async def test_v2_skips_unrelated_ws_messages(ports: dict[str, int], monkeypatch: pytest.MonkeyPatch) -> None:
+    mock, session, tv = await _setup(True, False, ports, monkeypatch)
+    mock.noise = True
+    try:
+        await tv.connect()
+        assert await tv.get_volume() == 20
+        assert await tv.get_state() is TVState.EPG
+        assert (await tv.get_recordings())[0].id == 7
+    finally:
+        await tv.disconnect()
+        await session.close()
+        await mock.stop()

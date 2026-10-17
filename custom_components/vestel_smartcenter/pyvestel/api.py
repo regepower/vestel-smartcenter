@@ -36,7 +36,19 @@ _LOGGER = logging.getLogger(__name__)
 
 WS_PORT_V2 = 7681
 DEFAULT_TIMEOUT = 10.0
-FOLLOWTV_TIMEOUT = 30.0
+FOLLOWTV_TIMEOUT = 15.0
+
+# Markers that identify the websocket answer to a v2 <command>.
+V2_MATCH: dict[str, tuple[str, ...]] = {
+    "activechannellist": ("active_list", "channel_list"),
+    "program": ("<service",),
+    "volume": ("volume",),
+    "tvstate": ("tv_state",),
+    "timerlist": ("timer",),
+    "recordlist": ("record",),
+    "specialportalapps": (":",),
+    "startfollowtv": ("followtv",),
+}
 
 EventCallback = Callable[[str], None]
 
@@ -257,23 +269,32 @@ class VestelTV:
             "protocol": self.info.protocol or ("v2" if self.info.is_v2 else "v1"),
         }
 
-    async def _v2(self, body: str, expect: bool, timeout: float) -> str | None:
+    async def _v2(self, body: str, expect: bool, timeout: float, match: tuple[str, ...] | None = None) -> str | None:
+        """POST to SmartCenter; the answer arrives on the websocket. With `match`, only a message
+        containing one of the markers counts as the answer (stray/late messages are skipped)."""
         async with self._lock:
             while not self._responses.empty():
                 self._responses.get_nowait()
+            if expect and not self.connected:
+                await self.connect()
             http_body = await self._post("SmartCenter", body)
             if not expect:
                 return http_body
-            if not self.connected:
-                await self.connect()
-            try:
-                return await asyncio.wait_for(self._responses.get(), timeout)
-            except TimeoutError:
-                return http_body or None
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + timeout
+            while (left := deadline - loop.time()) > 0:
+                try:
+                    msg = await asyncio.wait_for(self._responses.get(), left)
+                except TimeoutError:
+                    break
+                if match is None or any(m in msg for m in match):
+                    return msg
+                _LOGGER.debug("skipping unrelated ws message for %s: %s", body, msg[:120])
+            return http_body or None
 
     async def _query(self, v1_path: str, v2_cmd: str, timeout: float = DEFAULT_TIMEOUT) -> str | None:
         if self.info.is_v2:
-            return await self._v2(f"<command>{v2_cmd}</command>", True, timeout)
+            return await self._v2(f"<command>{v2_cmd}</command>", True, timeout, V2_MATCH.get(v2_cmd))
         return await self._get(v1_path, timeout)
 
     async def _action(

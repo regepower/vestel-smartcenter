@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+from functools import cache
+from pathlib import Path
 
 from homeassistant.components.camera import Camera, CameraEntityFeature
 from homeassistant.components.ffmpeg import async_get_image
@@ -13,6 +15,12 @@ from .coordinator import VestelConfigEntry, VestelCoordinator
 from .entity import VestelEntity
 
 PARALLEL_UPDATES = 0
+IDLE_IMAGE = Path(__file__).with_name("followtv_idle.jpg")
+
+
+@cache
+def _idle_image() -> bytes:
+    return IDLE_IMAGE.read_bytes()
 
 
 async def async_setup_entry(
@@ -57,12 +65,15 @@ class VestelFollowTVCamera(VestelEntity, Camera):
         return ls.url if ls else None
 
     async def async_camera_image(self, width: int | None = None, height: int | None = None) -> bytes | None:
-        """Snapshot: grab one frame of the FollowTV stream with ffmpeg."""
+        """Snapshot. Only grabs a real frame while FollowTV is already running: HA requests
+        thumbnails every few seconds, and starting FollowTV for each of them would block the TV."""
         ls = self.coordinator.local_stream
-        if not (ls and ls.url and self.available):
-            return None
-        try:
-            async with asyncio.timeout(45):
-                return await async_get_image(self.hass, ls.url, width=width, height=height)
-        except TimeoutError:
-            return None
+        if ls and ls.url and self.coordinator.followtv.running:
+            try:
+                async with asyncio.timeout(20):
+                    img = await async_get_image(self.hass, ls.url, width=width, height=height)
+                if img:
+                    return img
+            except TimeoutError:
+                pass
+        return await self.hass.async_add_executor_job(_idle_image)
