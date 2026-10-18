@@ -79,3 +79,6 @@ ruff check . && mypy custom_components tools tests && pytest           # Bibliot
 pip install pytest-homeassistant-custom-component
 pytest tests_ha -o asyncio_mode=auto -p no:cacheprovider                # HA-Integration
 ```
+
+## Logo
+`custom_components/vestel_smartcenter/brand/` – Vestel-Schriftzug von [proicons.com](https://proicons.com/icons/598390/vestel/) (CC0-1.0). „Vestel“/„Telefunken“ sind Marken ihrer Inhaber; dieses Projekt ist inoffiziell und nicht mit Vestel verbunden.
